@@ -1,0 +1,2 @@
+# Lines of tools/check_references.sh's output that are allowed, one extended regular expression per line.
+# None at present.

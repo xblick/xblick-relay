@@ -1,0 +1,66 @@
+# durchblick-relay CI: the reference check, the build against Durchblick's C++ library, and the tests that need no
+# GPU (the CPU cases of tests/test_relay.py; the CUDA cases skip without a device).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+env:
+  ZENOH_VERSION: "1.10.1"
+
+jobs:
+  references:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/check_references.sh
+
+  tests:
+    runs-on: ubuntu-24.04
+    container: python:3.12-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: relay
+      # The core is private while it is not published. DURCHBLICK_READ_TOKEN: a token with read access to it.
+      - uses: actions/checkout@v4
+        with:
+          repository: xblick/durchblick
+          ref: main
+          path: durchblick
+          token: ${{ secrets.DURCHBLICK_READ_TOKEN }}
+      - name: Debian packages
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq cmake ninja-build libjpeg62-turbo-dev libpng-dev unzip > /dev/null
+      - name: zenoh-c, zenoh-cpp and zenohd
+        run: |
+          durchblick/tools/install_zenoh.sh /opt/zenoh
+          curl -sSfL -o /tmp/zenoh.zip \
+            "https://github.com/eclipse-zenoh/zenoh/releases/download/${ZENOH_VERSION}/zenoh-${ZENOH_VERSION}-x86_64-unknown-linux-gnu-standalone.zip"
+          mkdir -p /opt/zenohd && unzip -q /tmp/zenoh.zip -d /opt/zenohd
+          test -x /opt/zenohd/zenohd
+      - name: Durchblick (Python environment and C++ build)
+        working-directory: durchblick
+        run: |
+          python3 -m pip install --quiet uv
+          uv sync --locked
+          CUDA_INCLUDE="$(uv run --locked python -c "import nvidia, os; print(os.path.join(list(nvidia.__path__)[0], 'cu13', 'include'))")"
+          cmake -S . -B build/cpp -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH=/opt/zenoh \
+            -DDURCHBLICK_CUDA_INCLUDE_DIR="$CUDA_INCLUDE"
+          cmake --build build/cpp
+          cmake --install build/cpp --prefix build/cpp/install > /dev/null
+      - name: Relay (CPU build)
+        working-directory: relay
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/durchblick/build/cpp/install;/opt/zenoh"
+          cmake --build build
+          cmake --install build --prefix build/install
+      - name: Tests
+        working-directory: relay
+        timeout-minutes: 20
+        run: |
+          LD_LIBRARY_PATH=/opt/zenoh/lib DURCHBLICK_CPP_BUILD="$GITHUB_WORKSPACE/durchblick/build/cpp" \
+          DURCHBLICK_RELAY="$PWD/build/install/bin/durchblick-relay" ZENOHD=/opt/zenohd/zenohd \
+          "$GITHUB_WORKSPACE/durchblick/.venv/bin/python" -m pytest -q tests/test_relay.py
