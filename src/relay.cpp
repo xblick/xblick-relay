@@ -12,17 +12,17 @@
 #include <sys/file.h>
 #include <unistd.h>
 
-#include <durchblick/image.hpp>
-#include <durchblick/protocol.hpp>
-#include <durchblick/ring.hpp>
+#include <xblick/image.hpp>
+#include <xblick/protocol.hpp>
+#include <xblick/ring.hpp>
 
-#ifdef DURCHBLICK_RELAY_CUDA
+#ifdef XBLICK_RELAY_CUDA
 #include "nvjpeg_decoder.hpp"
 #endif
 
-namespace durchblick::relay
+namespace xblick::relay
 {
-    namespace p = durchblick::protocol;
+    namespace p = xblick::protocol;
 
     namespace
     {
@@ -97,7 +97,7 @@ namespace durchblick::relay
             {
                 std::string name = base;
                 std::replace(name.begin(), name.end(), '/', '.');
-                path_ = "/dev/shm/durchblick-relay." + name + ".lock";
+                path_ = "/dev/shm/xblick-relay." + name + ".lock";
             }
             ~HostLock()
             {
@@ -166,7 +166,7 @@ namespace durchblick::relay
         std::chrono::steady_clock::time_point last_wanted{};
         std::int64_t own_seq = 0;
         bool nvjpeg = false;
-#ifdef DURCHBLICK_RELAY_CUDA
+#ifdef XBLICK_RELAY_CUDA
         std::unique_ptr<NvJpegDecoder> decoder;
 #endif
 
@@ -444,7 +444,7 @@ namespace durchblick::relay
                 next->transport == "compressed" ? jpeg_decoded(next->encoding) : next->encoding;
             bool use_nvjpeg = false;
             std::string name = next->transport == "raw" ? "none (raw)" : "cpu";
-#ifdef DURCHBLICK_RELAY_CUDA
+#ifdef XBLICK_RELAY_CUDA
             if (o.cuda_device and next->transport == "compressed" and NvJpegDecoder::supports(encoding))
             {
                 if (not decoder or decoder->device() != *o.cuda_device)
@@ -561,7 +561,7 @@ namespace durchblick::relay
                 const CompressedImage message = CompressedImage::deserialize(in.payload);
                 stamp = message.header.stamp.to_ns();
                 const Origin origin{message.header, seq, meta.source};
-#ifdef DURCHBLICK_RELAY_CUDA
+#ifdef XBLICK_RELAY_CUDA
                 if (nvjpeg and message.format.find("jpeg") != std::string::npos)
                 {
                     const DecodedOnDevice d = decoder->decode(message.data, published_encoding);
@@ -717,4 +717,4 @@ namespace durchblick::relay
         value("errors", std::to_string(now.errors));
         return s;
     }
-}  // namespace durchblick::relay
+}  // namespace xblick::relay

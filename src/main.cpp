@@ -1,6 +1,6 @@
-// durchblick-relay: brings image streams of other PCs into this PC's shared-memory and CUDA rings (relay.hpp).
+// xblick-relay: brings image streams of other PCs into this PC's shared-memory and CUDA rings (relay.hpp).
 //
-//   durchblick-relay [--stream robot/ecam24/left ...] [--cuda-device 0 | --cpu]
+//   xblick-relay [--stream robot/ecam24/left ...] [--cuda-device 0 | --cpu]
 //                    [--connect HOST ...] [--listen ENDPOINT ...] [--zenoh-mode peer|client] [--slots 32]
 //                    [--idle-ms 2000] [--prefer-raw] [--node NAME] [--param NAME:=VALUE ...] [--params-file FILE ...]
 //
@@ -10,7 +10,7 @@
 // --stream names streams to relay from the start and for as long as the relay runs, also for readers without the
 // token (a transport of their own choice, an older Durchblick).
 //
-// Every option is also a read-only parameter of the node durchblick/relay_<host> (durchblick/options.hpp; --node
+// Every option is also a read-only parameter of the node xblick/relay_<host> (xblick/options.hpp; --node
 // another name): the terminal interface shows how the relay runs, and --param or --params-file set them at the start.
 //
 // Without --connect/--listen: the PC's Zenoh router (127.0.0.1:7447), as every Durchblick node. Without --cpu or
@@ -33,10 +33,10 @@
 #include <cctype>
 #include <unistd.h>
 
-#include <durchblick/camera.hpp>
-#include <durchblick/cuda_ring.hpp>
-#include <durchblick/options.hpp>
-#include <durchblick/parameters.hpp>
+#include <xblick/camera.hpp>
+#include <xblick/cuda_ring.hpp>
+#include <xblick/options.hpp>
+#include <xblick/parameters.hpp>
 
 #include "relay.hpp"
 
@@ -52,24 +52,24 @@ namespace
         char stamp[32];
         std::strftime(stamp, sizeof stamp, "%H:%M:%S", std::localtime(&t));
         std::lock_guard lock(log_mutex);
-        std::cerr << stamp << " durchblick-relay: " << text << std::endl;
+        std::cerr << stamp << " xblick-relay: " << text << std::endl;
     }
 
     // The second line of --help: what this build decodes with. The tests (tests/test_relay.py) read it to know
-    // whether the program can serve a CUDA ring; the wheel blick-relay is built without nvJPEG.
-#ifdef DURCHBLICK_RELAY_CUDA
+    // whether the program can serve a CUDA ring; the wheel xblick-relay is built without nvJPEG.
+#ifdef XBLICK_RELAY_CUDA
     constexpr const char* kDecoders = "decoders of this build: nvJPEG (CUDA ring) and CPU";
 #else
     constexpr const char* kDecoders = "decoders of this build: CPU only (built without nvJPEG, no --cuda-device)";
 #endif
 
-    // Every option is also a read-only parameter of the node (durchblick/options.hpp): the relay's streams take
+    // Every option is also a read-only parameter of the node (xblick/options.hpp): the relay's streams take
     // their settings when they are made.
-    durchblick::Options options_of()
+    xblick::Options options_of()
     {
-        using namespace durchblick;
-        Options o("durchblick-relay", std::string("relays image streams of other PCs into this PC's shared-memory and "
-                                                  "CUDA rings\n") + kDecoders);
+        using namespace xblick;
+        Options o("xblick-relay", std::string("relays image streams of other PCs into this PC's shared-memory and "
+                                              "CUDA rings\n") + kDecoders);
         o.add_list("stream", {}, {.help = "streams to relay from the start, besides those that readers on this PC "
                                           "ask for, e.g. robot/ecam24/left",
                                   .metavar = "NAME", .aliases = {"streams"}});
@@ -81,7 +81,7 @@ namespace
         o.add("idle-ms", std::int64_t{2000}, {.help = "how long after its last reader a stream is still relayed",
                                               .parameter = {.unit = "ms"}});
         o.add_flag("prefer-raw", {.help = "take the raw form where the source offers it"});
-        o.add("node", "", {.help = "the parameters' node durchblick/<node> (default: relay_<host>)"});
+        o.add("node", "", {.help = "the parameters' node xblick/<node> (default: relay_<host>)"});
         o.add_session_options();
         o.alias("zenoh-mode", "mode");  // the relay's older name
         o.add_parameter_options();
@@ -152,7 +152,7 @@ namespace
     // A stream being relayed: named with --stream (for as long as the relay runs) or asked for by a reader.
     struct Relayed
     {
-        std::unique_ptr<durchblick::relay::RelayStream> stream;
+        std::unique_ptr<xblick::relay::RelayStream> stream;
         bool named = false;
         std::chrono::steady_clock::time_point last_wanted;
     };
@@ -170,12 +170,12 @@ namespace
 
 int main(int argc, char** argv)
 {
-    using namespace durchblick;
+    using namespace xblick;
     Options options = options_of();
     options.parse(argc, argv);
     if (options.flag("cpu") and options.has_value("cuda-device"))
     {
-        std::cerr << "durchblick-relay: --cpu and --cuda-device exclude each other\n" << options.usage();
+        std::cerr << "xblick-relay: --cpu and --cuda-device exclude each other\n" << options.usage();
         return 2;
     }
     std::signal(SIGINT, [](int) { stop = 1; });
@@ -184,7 +184,7 @@ int main(int argc, char** argv)
     {
         zenoh::Session session = open_session(options.session_options());
         const std::string node_name = options.text("node").empty() ? host_node_name() : options.text("node");
-        Parameters parameters(session, check_name(node_name), "durchblick");
+        Parameters parameters(session, check_name(node_name), "xblick");
         parameters.configure(options.parameter_startup());
         options.declare(parameters, {}, {"node"});
         parameters.check_overrides();
@@ -193,7 +193,7 @@ int main(int argc, char** argv)
         {
             device = static_cast<int>(options.integer("cuda-device"));
         }
-#ifdef DURCHBLICK_RELAY_CUDA
+#ifdef XBLICK_RELAY_CUDA
         if (not device and not options.flag("cpu") and cuda_device_count() > 0)
         {
             device = 0;
@@ -201,7 +201,7 @@ int main(int argc, char** argv)
 #else
         if (device)
         {
-            throw std::invalid_argument("--cuda-device: this build has no nvJPEG (DURCHBLICK_RELAY_CUDA off)");
+            throw std::invalid_argument("--cuda-device: this build has no nvJPEG (XBLICK_RELAY_CUDA off)");
         }
 #endif
         const auto idle = std::chrono::milliseconds(options.integer("idle-ms"));

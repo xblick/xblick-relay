@@ -1,7 +1,7 @@
-# The Python wheel blick-relay: the program durchblick-relay (CMakeLists.txt, without nvJPEG) and libzenohc.so in the
-# package blick_relay. Durchblick's command `blick relay` starts it (pip install blick[relay]).
+# The Python wheel xblick-relay: the program xblick-relay (CMakeLists.txt, without nvJPEG) and libzenohc.so in the
+# package xblick_relay. Durchblick's command `xblick relay` starts it (pip install xblick[relay]).
 #
-#   CMAKE_PREFIX_PATH=<durchblick install>:<zenoh-c/zenoh-cpp prefix> uv build --wheel --out-dir dist
+#   CMAKE_PREFIX_PATH=<xblick install>:<zenoh-c/zenoh-cpp prefix> uv build --wheel --out-dir dist
 #
 # The wheel for PyPI (manylinux_2_28, libjpeg and libpng inside): tools/build_wheel.sh. licenses/: NOTICE.
 [build-system]
@@ -9,15 +9,15 @@ requires = ["scikit-build-core>=0.11"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "blick-relay"
+name = "xblick-relay"
 dynamic = ["version"]  # from CMakeLists.txt, project(VERSION)
-description = "durchblick-relay: image streams of other PCs in this PC's shared-memory rings; started by `blick relay`."
+description = "xblick-relay: image streams of other PCs in this PC's shared-memory rings; started by `xblick relay`."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "licenses/*"]  # licenses/: what the wheel contains of others (NOTICE)
 authors = [{ name = "David Schneider" }]
 requires-python = ">=3.10"
-keywords = ["durchblick", "zenoh", "camera", "image streams", "shared memory", "relay", "robotics"]
+keywords = ["xblick", "zenoh", "camera", "image streams", "shared memory", "relay", "robotics"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -31,17 +31,17 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/xblick/durchblick-relay"
-Repository = "https://github.com/xblick/durchblick-relay"
-Documentation = "https://github.com/xblick/durchblick-relay/tree/main/docs"
-Issues = "https://github.com/xblick/durchblick-relay/issues"
+Homepage = "https://github.com/xblick/xblick-relay"
+Repository = "https://github.com/xblick/xblick-relay"
+Documentation = "https://github.com/xblick/xblick-relay/tree/main/docs"
+Issues = "https://github.com/xblick/xblick-relay/issues"
 
 [tool.scikit-build]
 minimum-version = "build-system.requires"
 metadata.version.provider = "scikit_build_core.metadata.regex"
 metadata.version.input = "CMakeLists.txt"
-metadata.version.regex = 'project\(durchblick_relay VERSION (?P<value>[0-9.]+)'
-wheel.packages = ["python/blick_relay"]
+metadata.version.regex = 'project\(xblick_relay VERSION (?P<value>[0-9.]+)'
+wheel.packages = ["python/xblick_relay"]
 # a program, no Python extension: one wheel for every Python 3 (py3-none-<platform>)
 wheel.py-api = "py3"
 build-dir = "build/{wheel_tag}"

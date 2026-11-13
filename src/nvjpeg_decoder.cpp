@@ -6,7 +6,7 @@
 #include <cuda_runtime.h>
 #include <nvjpeg.h>
 
-namespace durchblick::relay
+namespace xblick::relay
 {
     namespace
     {
@@ -138,4 +138,4 @@ namespace durchblick::relay
     void NvJpegDecoder::synchronize() { check(cudaStreamSynchronize(impl_->stream), "cudaStreamSynchronize"); }
 
     int NvJpegDecoder::device() const { return impl_->device; }
-}  // namespace durchblick::relay
+}  // namespace xblick::relay

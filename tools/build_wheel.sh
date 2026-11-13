@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# The wheel blick-relay for PyPI, tagged manylinux_2_28_x86_64: what the CI's wheel job and the publish workflow build.
+# The wheel xblick-relay for PyPI, tagged manylinux_2_28_x86_64: what the CI's wheel job and the publish workflow build.
 # Runs in the image quay.io/pypa/manylinux_2_28_x86_64 (AlmaLinux 8, glibc 2.28):
 #
 #   dnf install -y --setopt=tsflags= libjpeg-turbo-devel libpng-devel   # as root; with docs: README.ijg
-#   tools/build_wheel.sh <durchblick checkout> <out dir> <work dir>
+#   tools/build_wheel.sh <xblick checkout> <out dir> <work dir>
 #
 # Needs on PATH cargo and rustc of the version zenoh-c's rust-toolchain.toml names (1.97.1 for zenoh-c 1.10.1), and
 # network access: the zenoh-c and zenoh-cpp sources (GitHub), Rust crates, the pip packages nvidia-cuda-runtime (cuda.h
@@ -11,14 +11,14 @@
 # repaired wheel only.
 #
 # 1. zenoh-c from source: its prebuilt release needs glibc 2.34 (GLIBC_2.34 symbols), more than manylinux_2_28 allows.
-# 2. zenoh-cpp's headers. 3. Durchblick's C++ library (camera API, static) from <durchblick checkout>.
-# 4. The wheel (pyproject.toml). 5. auditwheel repair: libjpeg and libpng of AlmaLinux 8 go into blick_relay.libs/
-#    (their licences: licenses/), libzenohc.so stays in blick_relay/lib. 6. Checks: the platform tag, every library
+# 2. zenoh-cpp's headers. 3. Durchblick's C++ library (camera API, static) from <xblick checkout>.
+# 4. The wheel (pyproject.toml). 5. auditwheel repair: libjpeg and libpng of AlmaLinux 8 go into xblick_relay.libs/
+#    (their licences: licenses/), libzenohc.so stays in xblick_relay/lib. 6. Checks: the platform tag, every library
 #    resolves without LD_LIBRARY_PATH, --help names a CPU-only build.
 set -euo pipefail
 
 if [ $# -ne 3 ]; then
-  echo "usage: $0 <durchblick checkout> <out dir> <work dir>" >&2
+  echo "usage: $0 <xblick checkout> <out dir> <work dir>" >&2
   exit 2
 fi
 CORE="$(cd "$1" && pwd)"
@@ -100,29 +100,29 @@ echo "== Durchblick's C++ library"
 "$WORK/cuda/bin/pip" install --quiet "nvidia-cuda-runtime>=13,<14"
 CUDA_INCLUDE="$("$WORK/cuda/bin/python" -c "import nvidia, os; print(os.path.join(list(nvidia.__path__)[0], 'cu13', 'include'))")"
 cmake -S "$CORE" -B "$WORK/core-build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$ZENOH" \
-  -DDURCHBLICK_CAMERA=ON -DDURCHBLICK_CUDA_INCLUDE_DIR="$CUDA_INCLUDE" -DBUILD_TESTING=OFF > /dev/null
+  -DXBLICK_CAMERA=ON -DXBLICK_CUDA_INCLUDE_DIR="$CUDA_INCLUDE" -DBUILD_TESTING=OFF > /dev/null
 cmake --build "$WORK/core-build" -j "$JOBS"
 cmake --install "$WORK/core-build" --prefix "$WORK/core-install" > /dev/null
 
 echo "== the wheel"
 CMAKE_PREFIX_PATH="$WORK/core-install:$ZENOH" "$PYTHON" -m pip wheel --no-deps --no-cache-dir "$RELAY" \
   -w "$WORK/wheelhouse" -C build-dir="$WORK/relay-build"
-wheel="$(ls "$WORK"/wheelhouse/blick_relay-*.whl)"
+wheel="$(ls "$WORK"/wheelhouse/xblick_relay-*.whl)"
 auditwheel repair --plat "$PLAT" -w "$WORK/repaired" "$wheel"
-repaired="$(ls "$WORK"/repaired/blick_relay-*-py3-none-${PLAT}.whl)"
+repaired="$(ls "$WORK"/repaired/xblick_relay-*-py3-none-${PLAT}.whl)"
 auditwheel show "$repaired"
 
 echo "== checks"
 mkdir "$WORK/check"
 (cd "$WORK/check" && "$PYTHON" -m zipfile -e "$repaired" .)
-program="$WORK/check/blick_relay/bin/durchblick-relay"
+program="$WORK/check/xblick_relay/bin/xblick-relay"
 chmod +x "$program"
 env -u LD_LIBRARY_PATH ldd "$program"
 if env -u LD_LIBRARY_PATH ldd "$program" | grep -q "not found"; then
   echo "$program: a library does not resolve" >&2
   exit 1
 fi
-env -u LD_LIBRARY_PATH ldd "$program" | grep -q "blick_relay/bin/../lib/libzenohc.so"
+env -u LD_LIBRARY_PATH ldd "$program" | grep -q "xblick_relay/bin/../lib/libzenohc.so"
 if env -u LD_LIBRARY_PATH ldd "$program" | grep -E "=> /(usr/)?lib.*/lib(jpeg|png)"; then
   echo "$program takes libjpeg or libpng from the system" >&2
   exit 1

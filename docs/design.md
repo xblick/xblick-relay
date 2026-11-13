@@ -77,17 +77,17 @@ source, of a relay and of relays on other PCs therefore never meet, and three ru
 
 1. A relay never relays a record that has `relayed_from` set.
 2. A relay does not relay a source that has a ring on the relay's own PC. The readers on that PC take that ring.
-3. On one PC, only one relay publishes a stream. A lock file (`/dev/shm/durchblick-relay.<stream>.lock`) decides.
+3. On one PC, only one relay publishes a stream. A lock file (`/dev/shm/xblick-relay.<stream>.lock`) decides.
    A second relay waits for the stream and logs the reason.
 
 A source with rings on its own PC is relayed on every other PC. Relays on several PCs relay the same stream side by
 side, each for the readers of its PC.
 
-`blick list` shows the source of a relayed stream with the note "relayed on <host>".
+`xblick list` shows the source of a relayed stream with the note "relayed on <host>".
 
 ## Status and limits
 
-Version 0.3.1 (2026-11-13). We tested it on one machine with `tests/test_relay.py`. We have not run it between two
+Version 0.4.0 (2026-11-13). We tested it on one machine with `tests/test_relay.py`. We have not run it between two
 PCs, and we have not run relays on two PCs at the same time.
 
 Version notes:
@@ -109,10 +109,27 @@ Version notes:
 - 0.3.1 adds the Python wheel `blick-relay`. Durchblick 0.4.2 starts it with `blick relay`. The program's
   `--help` names the decoders of its build. The wheel for PyPI is built in manylinux_2_28 with zenoh-c from source
   (`tools/build_wheel.sh`).
+- 0.4.0 (2026-11-13) builds against Durchblick 0.5, in which every name in code, on the wire and on disk is `xblick`.
+  The relay takes the same names. It works only with programs of Durchblick 0.5. The relay's behaviour is unchanged.
+
+  | What | 0.3.1 | 0.4.0 |
+  | --- | --- | --- |
+  | Repository | `github.com/xblick/durchblick-relay` | `github.com/xblick/xblick-relay` |
+  | Program | `durchblick-relay` | `xblick-relay` |
+  | CMake project | `durchblick_relay` | `xblick_relay` |
+  | CMake option and compile definition | `DURCHBLICK_RELAY_CUDA` | `XBLICK_RELAY_CUDA` |
+  | Core package | `find_package(durchblick 0.4)`, `durchblick::durchblick`, `<durchblick/...>` | `find_package(xblick 0.5)`, `xblick::xblick`, `<xblick/...>` |
+  | C++ namespace | `durchblick::relay` | `xblick::relay` |
+  | Parameters node | `durchblick/relay_<host>` | `xblick/relay_<host>` |
+  | Lock file | `/dev/shm/durchblick-relay.<stream>.lock` | `/dev/shm/xblick-relay.<stream>.lock` |
+  | Python distribution | `blick-relay` | `xblick-relay` |
+  | Python module | `blick_relay` | `xblick_relay` |
+  | Started by | `blick relay` (Durchblick 0.4.2) | `xblick relay` (Durchblick 0.5) |
+  | Test environment | `DURCHBLICK_CPP_BUILD`, `DURCHBLICK_RELAY` | `XBLICK_CPP_BUILD`, `XBLICK_RELAY` |
 
 Open work:
 
-- nvJPEG in the wheel `blick-relay`. The wheel decodes on the CPU only.
+- nvJPEG in the wheel `xblick-relay`. The wheel decodes on the CPU only.
 - Rectification per stream on the GPU (`<name>_rect`) for a source that is too slow for it. A Jetson Nano rectifies
   at 1.7 frames per second.
 - Point clouds (`PointCloud2` over `raw`).

@@ -17,9 +17,9 @@
 #include <optional>
 #include <string>
 
-#include <durchblick/camera.hpp>
+#include <xblick/camera.hpp>
 
-namespace durchblick::relay
+namespace xblick::relay
 {
     struct RelayOptions
     {
@@ -64,4 +64,4 @@ namespace durchblick::relay
         struct Impl;
         std::unique_ptr<Impl> impl_;
     };
-}  // namespace durchblick::relay
+}  // namespace xblick::relay

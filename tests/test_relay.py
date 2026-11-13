@@ -1,14 +1,14 @@
-"""durchblick-relay end to end on one machine: a Zenoh router, Durchblick's C++ test camera as the source offering only
+"""xblick-relay end to end on one machine: a Zenoh router, Durchblick's C++ test camera as the source offering only
 network forms (--transports raw,compressed, as a camera on another PC looks from here), the relay, and Python readers.
 
 Run with Durchblick's Python environment:
 
-    DURCHBLICK_CPP_BUILD=<durchblick build dir with durchblick-cpp-camera> \\
-    DURCHBLICK_RELAY=<durchblick-relay binary> ZENOHD=<zenohd 1.10 binary> \\
-    <durchblick>/.venv/bin/python -m pytest tests/test_relay.py
+    XBLICK_CPP_BUILD=<xblick build dir with xblick-cpp-camera> \\
+    XBLICK_RELAY=<xblick-relay binary> ZENOHD=<zenohd 1.10 binary> \\
+    <xblick>/.venv/bin/python -m pytest tests/test_relay.py
 
-The CUDA cases need a GPU and a relay built with DURCHBLICK_RELAY_CUDA; they skip for a relay without nvJPEG (its --help
-says which decoders it has), such as the program of the wheel blick-relay."""
+The CUDA cases need a GPU and a relay built with XBLICK_RELAY_CUDA; they skip for a relay without nvJPEG (its --help
+says which decoders it has), such as the program of the wheel xblick-relay."""
 
 import json
 import os
@@ -21,17 +21,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from blick import _core, diagnostics, topics
-from blick.camera import CameraPublisher, ImageSubscriber, query_info
-from blick.codecs import decompress
-from blick.msg import CompressedImage
-from blick.session import open_session
+from xblick import _core, diagnostics, topics
+from xblick.camera import CameraPublisher, ImageSubscriber, query_info
+from xblick.codecs import decompress
+from xblick.msg import CompressedImage
+from xblick.session import open_session
 
-BUILD = os.environ.get("DURCHBLICK_CPP_BUILD")
-RELAY = os.environ.get("DURCHBLICK_RELAY")
+BUILD = os.environ.get("XBLICK_CPP_BUILD")
+RELAY = os.environ.get("XBLICK_RELAY")
 ZENOHD = os.environ.get("ZENOHD")
 pytestmark = pytest.mark.skipif(not (BUILD and RELAY and ZENOHD),
-                                reason="DURCHBLICK_CPP_BUILD, DURCHBLICK_RELAY and ZENOHD are needed")
+                                reason="XBLICK_CPP_BUILD, XBLICK_RELAY and ZENOHD are needed")
 
 
 def relay_has_nvjpeg(relay: str) -> bool:
@@ -48,7 +48,7 @@ def relay_has_nvjpeg(relay: str) -> bool:
 NVJPEG = relay_has_nvjpeg(RELAY) if RELAY else False
 needs_cuda = pytest.mark.skipif(_core.cuda_device_count() == 0 or not NVJPEG,
                                 reason="no CUDA device" if _core.cuda_device_count() == 0
-                                else "the relay is built without nvJPEG (the wheel, or DURCHBLICK_RELAY_CUDA off)")
+                                else "the relay is built without nvJPEG (the wheel, or XBLICK_RELAY_CUDA off)")
 
 W, H = 640, 480
 BASE = "t/relay/color"
@@ -84,7 +84,7 @@ class Setup:
         return proc
 
     def source(self, transports="raw,compressed", codec="jpeg", fps=30, encoding="rgb8", base=BASE):
-        cmd = [str(Path(BUILD) / "durchblick-cpp-camera"), "--connect", f"127.0.0.1:{self.port}", "--listen",
+        cmd = [str(Path(BUILD) / "xblick-cpp-camera"), "--connect", f"127.0.0.1:{self.port}", "--listen",
                "127.0.0.1:0", "--base", base, "--encoding", encoding, "--codec", codec, "--size", str(W), str(H),
                "--fps", str(fps), "--seconds", "120", "--transports", transports]
         proc = self._start(cmd, stdout=subprocess.PIPE, text=True)
@@ -384,13 +384,13 @@ def test_two_relays_started_together_settle_on_one(setup):
 
 
 def test_the_relays_options_are_its_parameters(setup):
-    """Every option is a read-only parameter of durchblick/<node> (durchblick::Options): the session's and the
+    """Every option is a read-only parameter of xblick/<node> (xblick::Options): the session's and the
     parameters' own are not; a value given with --param is the one in effect."""
-    from blick.parameters import ParameterClient
+    from xblick.parameters import ParameterClient
 
     setup.source()
     setup.relay("--cpu", "--node", "relay_test", "--param", "slots:=16", "--mode", "peer")  # --mode: the older name
-    client = ParameterClient(setup.session, "durchblick/relay_test")
+    client = ParameterClient(setup.session, "xblick/relay_test")
     end = time.monotonic() + 15
     while True:  # the relay's process has just started: ask until it answers
         try:

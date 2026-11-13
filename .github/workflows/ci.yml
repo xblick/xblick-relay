@@ -1,5 +1,5 @@
-# durchblick-relay CI: the reference check, the build against Durchblick's C++ library, the tests that need no GPU
-# (the CPU cases of tests/test_relay.py; the CUDA cases skip without a device), and the wheel blick-relay for PyPI.
+# xblick-relay CI: the reference check, the build against Durchblick's C++ library, the tests that need no GPU
+# (the CPU cases of tests/test_relay.py; the CUDA cases skip without a device), and the wheel xblick-relay for PyPI.
 name: ci
 
 on:
@@ -10,6 +10,8 @@ env:
   ZENOH_VERSION: "1.10.1"
   # zenoh-c 1.10.1 names this Rust in its rust-toolchain.toml (tools/build_wheel.sh checks it)
   RUST_VERSION: "1.97.1"
+  # The core this relay is built and tested against: Durchblick 0.5.0 (commit 45908e6; tag v0.5.0 once it exists)
+  XBLICK_REF: "45908e67465647b39a6b185665bd91da175924ca"
 
 jobs:
   references:
@@ -25,26 +27,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: relay
-      # The core is private while it is not published. DURCHBLICK_READ_TOKEN: a token with read access to it.
       - uses: actions/checkout@v4
         with:
-          repository: xblick/durchblick
-          ref: main
-          path: durchblick
-          token: ${{ secrets.DURCHBLICK_READ_TOKEN }}
+          repository: xblick/xblick
+          ref: ${{ env.XBLICK_REF }}
+          path: xblick
       - name: Debian packages
         run: |
           apt-get update -qq
           apt-get install -y -qq cmake ninja-build libjpeg62-turbo-dev libpng-dev unzip > /dev/null
       - name: zenoh-c, zenoh-cpp and zenohd
         run: |
-          durchblick/tools/install_zenoh.sh /opt/zenoh
+          xblick/tools/install_zenoh.sh /opt/zenoh
           curl -sSfL -o /tmp/zenoh.zip \
             "https://github.com/eclipse-zenoh/zenoh/releases/download/${ZENOH_VERSION}/zenoh-${ZENOH_VERSION}-x86_64-unknown-linux-gnu-standalone.zip"
           mkdir -p /opt/zenohd && unzip -q /tmp/zenoh.zip -d /opt/zenohd
           test -x /opt/zenohd/zenohd
       - name: Durchblick (Python environment and C++ build)
-        working-directory: durchblick
+        working-directory: xblick
         run: |
           python3 -m pip install --quiet uv
           uv sync --locked   # .venv: the Python side of the tests (dev group: pytest)
@@ -52,24 +52,24 @@ jobs:
           uv venv /tmp/cuda && uv pip install --quiet --python /tmp/cuda "nvidia-cuda-runtime>=13,<14"
           CUDA_INCLUDE="$(/tmp/cuda/bin/python -c "import nvidia, os; print(os.path.join(list(nvidia.__path__)[0], 'cu13', 'include'))")"
           cmake -S . -B build/cpp -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH=/opt/zenoh \
-            -DDURCHBLICK_CUDA_INCLUDE_DIR="$CUDA_INCLUDE"
+            -DXBLICK_CUDA_INCLUDE_DIR="$CUDA_INCLUDE"
           cmake --build build/cpp
           cmake --install build/cpp --prefix build/cpp/install > /dev/null
       - name: Relay (CPU build)
         working-directory: relay
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/durchblick/build/cpp/install;/opt/zenoh"
+          cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/xblick/build/cpp/install;/opt/zenoh"
           cmake --build build
           cmake --install build --prefix build/install
       - name: Tests
         working-directory: relay
         timeout-minutes: 20
         run: |
-          LD_LIBRARY_PATH=/opt/zenoh/lib DURCHBLICK_CPP_BUILD="$GITHUB_WORKSPACE/durchblick/build/cpp" \
-          DURCHBLICK_RELAY="$PWD/build/install/bin/durchblick-relay" ZENOHD=/opt/zenohd/zenohd \
-          "$GITHUB_WORKSPACE/durchblick/.venv/bin/python" -m pytest -q tests/test_relay.py
+          LD_LIBRARY_PATH=/opt/zenoh/lib XBLICK_CPP_BUILD="$GITHUB_WORKSPACE/xblick/build/cpp" \
+          XBLICK_RELAY="$PWD/build/install/bin/xblick-relay" ZENOHD=/opt/zenohd/zenohd \
+          "$GITHUB_WORKSPACE/xblick/.venv/bin/python" -m pytest -q tests/test_relay.py
 
-  # The wheel blick-relay for PyPI: tools/build_wheel.sh in manylinux_2_28, as the workflow publish builds it.
+  # The wheel xblick-relay for PyPI: tools/build_wheel.sh in manylinux_2_28, as the workflow publish builds it.
   wheel:
     runs-on: ubuntu-24.04
     container: quay.io/pypa/manylinux_2_28_x86_64
@@ -77,18 +77,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: relay
-      # The core is private while it is not published. DURCHBLICK_READ_TOKEN: a token with read access to it.
       - uses: actions/checkout@v4
         with:
-          repository: xblick/durchblick
-          ref: main
-          path: durchblick
-          token: ${{ secrets.DURCHBLICK_READ_TOKEN }}
+          repository: xblick/xblick
+          ref: ${{ env.XBLICK_REF }}
+          path: xblick
       - name: a tag names the package version (CMakeLists.txt)
         if: github.ref_type == 'tag'
         working-directory: relay
         run: |
-          version="$(sed -n 's/^project(durchblick_relay VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          version="$(sed -n 's/^project(xblick_relay VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
           if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
             echo "tag ${GITHUB_REF_NAME} does not name the package version ${version} (CMakeLists.txt)" >&2
             exit 1
@@ -99,14 +97,14 @@ jobs:
           curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$RUST_VERSION"
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Wheel
-        run: relay/tools/build_wheel.sh durchblick relay/dist "$RUNNER_TEMP/relay-wheel"
+        run: relay/tools/build_wheel.sh xblick relay/dist "$RUNNER_TEMP/relay-wheel"
       - uses: actions/upload-artifact@v4
         with:
-          name: blick-relay-wheel
+          name: xblick-relay-wheel
           path: relay/dist/*.whl
 
   # The wheel in a fresh environment beside Durchblick from its checkout (no package index for either), started
-  # through `blick relay` without LD_LIBRARY_PATH.
+  # through `xblick relay` without LD_LIBRARY_PATH.
   wheel-check:
     needs: wheel
     runs-on: ubuntu-24.04
@@ -114,20 +112,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: xblick/durchblick
-          ref: main
-          path: durchblick
-          token: ${{ secrets.DURCHBLICK_READ_TOKEN }}
+          repository: xblick/xblick
+          ref: ${{ env.XBLICK_REF }}
+          path: xblick
       - uses: actions/download-artifact@v4
         with:
-          name: blick-relay-wheel
+          name: xblick-relay-wheel
           path: dist
-      - name: blick relay starts the wheel's program
+      - name: xblick relay starts the wheel's program
         run: |
           python3 -m pip install --quiet uv
           uv venv /tmp/check
-          uv pip install --python /tmp/check ./durchblick dist/blick_relay-*.whl
-          program="$(/tmp/check/bin/python -c "import blick_relay; print(blick_relay.binary())")"
+          uv pip install --python /tmp/check ./xblick dist/xblick_relay-*.whl
+          program="$(/tmp/check/bin/python -c "import xblick_relay; print(xblick_relay.binary())")"
           env -u LD_LIBRARY_PATH ldd "$program"
           if env -u LD_LIBRARY_PATH ldd "$program" | grep -q "not found"; then exit 1; fi
-          env -u LD_LIBRARY_PATH /tmp/check/bin/blick relay --help
+          env -u LD_LIBRARY_PATH /tmp/check/bin/xblick relay --help

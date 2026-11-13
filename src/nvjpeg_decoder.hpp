@@ -1,5 +1,5 @@
 // JPEG frames decoded on the GPU with nvJPEG into device memory (rows without padding), for Durchblick's CUDA ring
-// without a trip through host memory. After durchblick-azure-kinect's decoder, with the output layout chosen per
+// without a trip through host memory. After xblick-azure-kinect's decoder, with the output layout chosen per
 // stream (rgb8, bgr8, mono8) and the size taken from the JPEG.
 #pragma once
 
@@ -8,7 +8,7 @@
 #include <span>
 #include <string>
 
-namespace durchblick::relay
+namespace xblick::relay
 {
     struct DecodedOnDevice
     {
@@ -38,4 +38,4 @@ namespace durchblick::relay
         struct Impl;
         std::unique_ptr<Impl> impl_;
     };
-}  // namespace durchblick::relay
+}  // namespace xblick::relay
