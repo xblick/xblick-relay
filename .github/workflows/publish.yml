@@ -1,0 +1,67 @@
+# Publish blick-relay on PyPI: on a tag v<version> (the version of CMakeLists.txt) or by hand (workflow_dispatch).
+# Builds the wheel the CI's job wheel builds (tools/build_wheel.sh, manylinux_2_28, against Durchblick's main) and
+# uploads it with PyPI's trusted publishing: no stored token. PyPI's publisher for blick-relay names the owner xblick,
+# the repository durchblick-relay, the workflow publish.yml and the environment pypi. No sdist: building the program
+# needs Durchblick's C++ library installed (README.md, Install).
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  ZENOH_VERSION: "1.10.1"
+  # zenoh-c 1.10.1 names this Rust in its rust-toolchain.toml (tools/build_wheel.sh checks it)
+  RUST_VERSION: "1.97.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container: quay.io/pypa/manylinux_2_28_x86_64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: relay
+      # The core is private while it is not published. DURCHBLICK_READ_TOKEN: a token with read access to it.
+      - uses: actions/checkout@v4
+        with:
+          repository: xblick/durchblick
+          ref: main
+          path: durchblick
+          token: ${{ secrets.DURCHBLICK_READ_TOKEN }}
+      - name: a tag names the package version (CMakeLists.txt)
+        if: github.ref_type == 'tag'
+        working-directory: relay
+        run: |
+          version="$(sed -n 's/^project(durchblick_relay VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not name the package version ${version} (CMakeLists.txt)" >&2
+            exit 1
+          fi
+      - name: libjpeg, libpng (with their licence files) and Rust
+        run: |
+          dnf install -y -q --setopt=tsflags= libjpeg-turbo-devel libpng-devel
+          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$RUST_VERSION"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Wheel
+        run: relay/tools/build_wheel.sh durchblick dist "$RUNNER_TEMP/relay-wheel"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/p/blick-relay
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

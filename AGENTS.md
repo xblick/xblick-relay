@@ -14,6 +14,11 @@ Transport-wide traps (Zenoh sessions and routers, CUDA rings, hanging tests) are
 cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=<durchblick install> \
   -DDURCHBLICK_RELAY_CUDA=ON -DCUDAToolkit_ROOT=<CUDA 12 toolkit with nvJPEG>
 cmake --build build && cmake --install build --prefix build/install
+# the wheel blick-relay (pyproject.toml, scikit-build-core; no nvJPEG); env CMAKE_PREFIX_PATH separates with ":"
+CMAKE_PREFIX_PATH=<durchblick install>:<zenoh-c/zenoh-cpp prefix> uv build --wheel -o dist   # ~1 min, linux_x86_64 tag
+# the wheel for PyPI (manylinux_2_28; CI job wheel, publish.yml): in quay.io/pypa/manylinux_2_28_x86_64, ~6 min
+dnf install -y --setopt=tsflags= libjpeg-turbo-devel libpng-devel     # root; Rust 1.97.1 (cargo, rustc) on PATH
+tools/build_wheel.sh <durchblick checkout> <out dir> <empty work dir>
 # tests: Durchblick's Python env (dev group), Durchblick's C++ build (durchblick-cpp-camera), zenohd 1.10
 DURCHBLICK_CPP_BUILD=$DURCHBLICK_DIR/build DURCHBLICK_RELAY=build/install/bin/durchblick-relay \
 ZENOHD=<zenohd 1.10> CUDA_VISIBLE_DEVICES=0 $DURCHBLICK_DIR/.venv/bin/python -m pytest tests/test_relay.py
@@ -42,6 +47,9 @@ tools/check_references.sh
 - Subscribe to the source only while a local reader takes a ring. Drop it `--idle-ms` after the last reader left.
 - Keep a source until three discovery rounds miss it (`kMissesBeforeDrop`). A failed query changes nothing.
 - Compile with `-Wall -Wextra`. Guard all nvJPEG code with `#ifdef DURCHBLICK_RELAY_CUDA`.
+- Wheel (`SKBUILD`): RPATH `$ORIGIN/../lib` only, no path of the build machine. libzenohc.so goes into
+  `blick_relay/lib`; auditwheel puts libjpeg and libpng into `blick_relay.libs/`. PyPI wheels only from
+  `tools/build_wheel.sh` (manylinux_2_28; zenoh-c from source: the prebuilt one needs glibc 2.34). Durchblick's `blick relay` finds the program through `blick_relay.binary()`: keep that name.
 
 ## Traps
 
@@ -57,6 +65,10 @@ tools/check_references.sh
 | `overwritten` grows | The relay is too slow for the source's rate. |
 | `lost` grows | Gaps in the source's `seq`: the network lost frames or the source dropped them. |
 | The relay dies with `std::length_error` (`basic_string::_M_create`) when it drops a stream | Durchblick 0.3.64: `CameraPublisher` answered an info query while its destructor ran (docs/design.md). Build against a Durchblick with the fix. Naming the streams with `--stream` avoids the drop, but the fix makes it unnecessary. |
+| Wheel build: `Imported target "durchblick::durchblick" includes non-existent path "<dir>/include"` | The zenoh-cpp prefix has a second `zenohcxxConfig.cmake` at its root (a build tree's install). Add `-C cmake.define.zenohcxx_DIR=<prefix>/lib/cmake/zenohcxx`. |
+| `blick relay` starts another relay than expected | It takes the installed `blick-relay` before `durchblick-relay` on `PATH`. Uninstall the wheel to use a CMake build. |
+| `build_wheel.sh`: `licenses/zenoh-c-crates.txt is not the list of this build` | Another zenoh-c version or Cargo.lock. Regenerate: `python tools/zenoh_c_crates.py <work>/zenoh-c-build/release > licenses/zenoh-c-crates.txt` (in the container, cargo on PATH), check NOTICE. |
+| `build_wheel.sh`: `licenses/libjpeg-turbo-README.ijg differs` (file missing) | dnf without `--setopt=tsflags=`: the image installs no docs. |
 
 ## Layout
 
@@ -67,6 +79,10 @@ tools/check_references.sh
 | `src/relay.hpp`, `src/relay.cpp` | `RelayOptions`, `RelayStats`, `RelayStream`: discovery, host lock, subscription on demand, decode, publish |
 | `src/nvjpeg_decoder.hpp`, `src/nvjpeg_decoder.cpp` | nvJPEG decode into device memory (CUDA builds only) |
 | `tests/test_relay.py` | pytest tests against Durchblick's C++ test camera |
+| `pyproject.toml`, `python/blick_relay/` | the wheel `blick-relay`: program in `blick_relay/bin`, `libzenohc.so` in `blick_relay/lib`, `binary()` |
+| `tools/build_wheel.sh`, `tools/zenoh_c_crates.py` | the PyPI wheel (manylinux_2_28), the crate list of libzenohc.so |
+| `licenses/` | licence texts of zenoh-c, its Rust crates, libjpeg-turbo, libpng (in the wheel; NOTICE) |
+| `.github/workflows/publish.yml` | tag v<version>: the wheel to PyPI (trusted publishing, environment pypi) |
 | `docs/` | human documentation |
 
 ## Defaults

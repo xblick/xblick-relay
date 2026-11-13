@@ -87,7 +87,7 @@ side, each for the readers of its PC.
 
 ## Status and limits
 
-Version 0.3.0 (2026-11-13). We tested it on one machine with `tests/test_relay.py`. We have not run it between two
+Version 0.3.1 (2026-11-13). We tested it on one machine with `tests/test_relay.py`. We have not run it between two
 PCs, and we have not run relays on two PCs at the same time.
 
 Version notes:
@@ -106,9 +106,13 @@ Version notes:
   test that shows it and requires Durchblick 0.3.68, which has the fix.
 - 0.3.0 builds against Durchblick 0.4, the 0.3 line with its Python package renamed to `blick`. The relay itself
   is unchanged.
+- 0.3.1 adds the Python wheel `blick-relay`. Durchblick 0.4.2 starts it with `blick relay`. The program's
+  `--help` names the decoders of its build. The wheel for PyPI is built in manylinux_2_28 with zenoh-c from source
+  (`tools/build_wheel.sh`).
 
 Open work:
 
+- nvJPEG in the wheel `blick-relay`. The wheel decodes on the CPU only.
 - Rectification per stream on the GPU (`<name>_rect`) for a source that is too slow for it. A Jetson Nano rectifies
   at 1.7 frames per second.
 - Point clouds (`PointCloud2` over `raw`).

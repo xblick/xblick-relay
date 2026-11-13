@@ -7,7 +7,8 @@ Run with Durchblick's Python environment:
     DURCHBLICK_RELAY=<durchblick-relay binary> ZENOHD=<zenohd 1.10 binary> \\
     <durchblick>/.venv/bin/python -m pytest tests/test_relay.py
 
-The CUDA cases need a GPU and a relay built with DURCHBLICK_RELAY_CUDA."""
+The CUDA cases need a GPU and a relay built with DURCHBLICK_RELAY_CUDA; they skip for a relay without nvJPEG (its --help
+says which decoders it has), such as the program of the wheel blick-relay."""
 
 import json
 import os
@@ -31,7 +32,23 @@ RELAY = os.environ.get("DURCHBLICK_RELAY")
 ZENOHD = os.environ.get("ZENOHD")
 pytestmark = pytest.mark.skipif(not (BUILD and RELAY and ZENOHD),
                                 reason="DURCHBLICK_CPP_BUILD, DURCHBLICK_RELAY and ZENOHD are needed")
-needs_cuda = pytest.mark.skipif(_core.cuda_device_count() == 0, reason="no CUDA device")
+
+
+def relay_has_nvjpeg(relay: str) -> bool:
+    """Whether the relay program was built with nvJPEG, from the line its --help prints (src/main.cpp, kDecoders).
+    A program without that line is an error, not a guess."""
+    out = subprocess.run([relay, "--help"], capture_output=True, text=True, timeout=10, check=True).stdout
+    if "decoders of this build: nvJPEG" in out:
+        return True
+    if "decoders of this build: CPU only" in out:
+        return False
+    raise RuntimeError(f"{relay} --help names no decoders of this build (a relay older than 0.3.1?)")
+
+
+NVJPEG = relay_has_nvjpeg(RELAY) if RELAY else False
+needs_cuda = pytest.mark.skipif(_core.cuda_device_count() == 0 or not NVJPEG,
+                                reason="no CUDA device" if _core.cuda_device_count() == 0
+                                else "the relay is built without nvJPEG (the wheel, or DURCHBLICK_RELAY_CUDA off)")
 
 W, H = 640, 480
 BASE = "t/relay/color"

@@ -2,3 +2,24 @@ durchblick-relay
 Copyright 2026 David Schneider
 
 Licensed under the Apache License, Version 2.0 (LICENSE).
+
+The Python wheel blick-relay also contains software of others. Their licence texts are in the directory licenses/,
+which the wheel carries in its metadata (blick_relay-<version>.dist-info/licenses/licenses/).
+
+- blick_relay/lib/libzenohc.so: Eclipse zenoh-c 1.10.1 (https://github.com/eclipse-zenoh/zenoh-c), built from its
+  source by tools/build_wheel.sh. Eclipse zenoh-c is made available under the terms of the Eclipse Public License 2.0
+  or the Apache License, Version 2.0 (SPDX-License-Identifier: EPL-2.0 OR Apache-2.0). Its licence and notice:
+  licenses/zenoh-c-LICENSE, licenses/zenoh-c-NOTICE.md.
+  The library contains the Rust crates that zenoh-c is built from, each under its own licence.
+  licenses/zenoh-c-crates.txt lists each crate with the licence expression of its Cargo.toml and the licence files
+  the crate ships, with their texts. The list marks the crates that ship no licence file.
+  The crate option-ext 0.2.0 is under the Mozilla Public License 2.0. Its source code is available at
+  https://crates.io/crates/option-ext/0.2.0.
+
+- blick_relay.libs/ (libjpeg): libjpeg-turbo 1.5.3 as packaged by AlmaLinux 8, added to the wheel by auditwheel.
+  This software is based in part on the work of the Independent JPEG Group. libjpeg-turbo is covered by the IJG
+  License, the Modified (3-clause) BSD License and the zlib License: licenses/libjpeg-turbo-LICENSE.md,
+  licenses/libjpeg-turbo-README.ijg.
+
+- blick_relay.libs/ (libpng16): libpng 1.6.34 as packaged by AlmaLinux 8, added to the wheel by auditwheel, under the
+  libpng license: licenses/libpng-LICENSE.

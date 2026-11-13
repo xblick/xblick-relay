@@ -55,12 +55,21 @@ namespace
         std::cerr << stamp << " durchblick-relay: " << text << std::endl;
     }
 
+    // The second line of --help: what this build decodes with. The tests (tests/test_relay.py) read it to know
+    // whether the program can serve a CUDA ring; the wheel blick-relay is built without nvJPEG.
+#ifdef DURCHBLICK_RELAY_CUDA
+    constexpr const char* kDecoders = "decoders of this build: nvJPEG (CUDA ring) and CPU";
+#else
+    constexpr const char* kDecoders = "decoders of this build: CPU only (built without nvJPEG, no --cuda-device)";
+#endif
+
     // Every option is also a read-only parameter of the node (durchblick/options.hpp): the relay's streams take
     // their settings when they are made.
     durchblick::Options options_of()
     {
         using namespace durchblick;
-        Options o("durchblick-relay", "relays image streams of other PCs into this PC's shared-memory and CUDA rings");
+        Options o("durchblick-relay", std::string("relays image streams of other PCs into this PC's shared-memory and "
+                                                  "CUDA rings\n") + kDecoders);
         o.add_list("stream", {}, {.help = "streams to relay from the start, besides those that readers on this PC "
                                           "ask for, e.g. robot/ecam24/left",
                                   .metavar = "NAME", .aliases = {"streams"}});

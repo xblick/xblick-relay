@@ -2,8 +2,11 @@
 #
 #   cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=<durchblick install> [-DDURCHBLICK_RELAY_CUDA=ON
 #         -DCUDAToolkit_ROOT=<CUDA toolkit with nvJPEG>]
+#
+# The Python wheel blick-relay (pyproject.toml, scikit-build-core; pip install blick[relay]) builds the same program
+# without nvJPEG and installs it with libzenohc.so into the package blick_relay (below).
 cmake_minimum_required(VERSION 3.22)
-project(durchblick_relay VERSION 0.3.0 LANGUAGES CXX)
+project(durchblick_relay VERSION 0.3.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,7 +36,19 @@ if(DURCHBLICK_RELAY_CUDA)
 endif()
 message(STATUS "durchblick-relay: nvJPEG ${DURCHBLICK_RELAY_CUDA}")
 
-install(TARGETS durchblick-relay RUNTIME DESTINATION bin)
+if(SKBUILD)
+  # The wheel: blick_relay/bin/durchblick-relay and blick_relay/lib/libzenohc.so, which a pip installation does not
+  # have. The program finds the library through $ORIGIN/../lib only: no path of the build machine in its RPATH.
+  # libjpeg, libpng, libstdc++ and libc come from the system.
+  if(DURCHBLICK_RELAY_CUDA)
+    message(FATAL_ERROR "the wheel has no nvJPEG: build it without DURCHBLICK_RELAY_CUDA (README.md, Python package)")
+  endif()
+  set_target_properties(durchblick-relay PROPERTIES INSTALL_RPATH_USE_LINK_PATH OFF)
+  install(TARGETS durchblick-relay RUNTIME DESTINATION blick_relay/bin)
+  install(FILES $<TARGET_FILE:zenohc::lib> DESTINATION blick_relay/lib)
+else()
+  install(TARGETS durchblick-relay RUNTIME DESTINATION bin)
+endif()
 
 enable_testing()
 # tests/test_relay.py: the relay between a source of the C++ test camera (durchblick-cpp-camera of Durchblick's build,

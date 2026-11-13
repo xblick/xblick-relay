@@ -7,7 +7,8 @@ This page states how to run the tests of durchblick-relay and what they check.
 - Durchblick's Python environment with its `dev` group,
 - Durchblick's C++ build, which contains the test camera `durchblick-cpp-camera`,
 - `zenohd` 1.10,
-- for the CUDA cases, a GPU and a relay built with `DURCHBLICK_RELAY_CUDA=ON`.
+- for the CUDA cases, a GPU and a relay built with `DURCHBLICK_RELAY_CUDA=ON`. The tests read the relay's `--help`,
+  which names the decoders of the build. They skip the CUDA cases for a relay without nvJPEG, such as the wheel's.
 
 The test camera acts as a source that offers only network transports. The relay therefore relays it on the same
 machine. One test uses a Python publisher that reports another host, to act as a source with rings on another PC.

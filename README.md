@@ -51,13 +51,30 @@ Readers receive those from the source.
 
 ## Requirements
 
-- Durchblick 0.4, installed with its C++ library. The readers need 0.4 too.
-- CMake 3.22 or newer, Ninja and a C++20 compiler.
-- For GPU decoding: an NVIDIA GPU and a CUDA 12 toolkit with nvJPEG. Without them the relay decodes on the CPU and
-  fills the host ring only.
+- Durchblick 0.4. The readers need 0.4 too. The CMake build also needs Durchblick's C++ library.
+- For the CMake build: CMake 3.22 or newer, Ninja and a C++20 compiler. Installing the wheel needs none of them.
+- For GPU decoding with the CMake build: an NVIDIA GPU and a CUDA 12 toolkit with nvJPEG. Without them the relay
+  decodes on the CPU and fills the host ring only.
 - A Zenoh router (`zenohd`) on the PC, as for every Durchblick node.
 
 ## Install
+
+With pip, install Durchblick's extra `relay`. It brings the wheel `blick-relay`, which contains the relay program and
+`libzenohc.so`. The command `blick relay` starts the program.
+
+```bash
+pip install "blick[relay]"
+blick relay --help
+```
+
+The wheel runs on Linux on x86-64 with glibc 2.28 or newer (manylinux_2_28). It decodes on the CPU only. It contains
+libjpeg and libpng and takes glibc, libstdc++ and zlib from the system. PyPI has only this wheel and no source
+distribution of `blick-relay`, because the program builds only against an installed Durchblick C++ library.
+
+`tools/build_wheel.sh` builds the wheel as PyPI has it, in the image `quay.io/pypa/manylinux_2_28_x86_64`. It builds
+zenoh-c from source, because the prebuilt zenoh-c needs glibc 2.34. The script's header lists what it needs.
+
+For nvJPEG, or on a system that the wheel does not support, build the program with CMake:
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=<durchblick install> \
@@ -66,8 +83,8 @@ cmake --build build
 cmake --install build --prefix build/install
 ```
 
-Leave out the two CUDA options for a build without nvJPEG. We did not execute the last two commands again for this
-page.
+Leave out the two CUDA options for a build without nvJPEG. Put `build/install/bin` on `PATH`, so that `blick relay`
+finds the program there. `blick relay` takes the installed wheel first and `PATH` second.
 
 ## Run
 
@@ -78,6 +95,8 @@ durchblick-relay                # every stream that a reader on this PC asks for
 durchblick-relay --cpu          # no GPU: host rings only
 durchblick-relay --stream robot/ecam24/left robot/ecam24/right     # these streams also without a request
 ```
+
+With the wheel, write `blick relay` in place of `durchblick-relay`. The options stay the same.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -114,7 +133,8 @@ reader has the frame 5.1 ms after its capture stamp.
 | The relay downloads a frame to the host ring only while a reader of that ring exists. | GPU-only readers cause no download. |
 | The relay subscribes to the source only while a local reader exists. | A stream that nobody reads costs no network traffic. |
 
-[docs/performance.md](docs/performance.md) has the measurement and explains the relay's status values.
+[docs/performance.md](https://github.com/xblick/durchblick-relay/blob/main/docs/performance.md) has the measurement
+and explains the relay's status values.
 
 ## Limits
 
@@ -123,16 +143,19 @@ reader has the frame 5.1 ms after its capture stamp.
 - One relay per PC. A second relay on the same PC waits for each stream that the first one relays.
 - The relay handles image streams. It does not relay point clouds and it does not rectify.
 - The relay decodes every stream on one GPU. A reader on another GPU of the PC copies each frame from there.
+- The wheel decodes on the CPU only. We installed it with pip on Debian 12 (Python 3.10 and 3.12) and started its
+  program on Ubuntu 22.04 and Ubuntu 24.04. Its tests passed on Ubuntu 24.04.
 
-[docs/design.md](docs/design.md) explains the reasons and lists the open work.
+[docs/design.md](https://github.com/xblick/durchblick-relay/blob/main/docs/design.md) explains the reasons and lists
+the open work.
 
 ## Documentation
 
 | Page | Content |
 | --- | --- |
-| [docs/design.md](docs/design.md) | How the relay finds its source, republishes and avoids conflicts |
-| [docs/performance.md](docs/performance.md) | The measured delay and the status values on `<camera>/diagnostics` |
-| [docs/testing.md](docs/testing.md) | How to run the tests and what they check |
+| [docs/design.md](https://github.com/xblick/durchblick-relay/blob/main/docs/design.md) | How the relay finds its source, republishes and avoids conflicts |
+| [docs/performance.md](https://github.com/xblick/durchblick-relay/blob/main/docs/performance.md) | The measured delay and the status values on `<camera>/diagnostics` |
+| [docs/testing.md](https://github.com/xblick/durchblick-relay/blob/main/docs/testing.md) | How to run the tests and what they check |
 
 Durchblick's concept pages explain the terms used here:
 [rings](https://github.com/xblick/durchblick/blob/main/docs/concepts/rings.md),
@@ -142,4 +165,8 @@ section "Relays", and
 
 ## Licence
 
-The relay is licensed under the Apache License 2.0 ([LICENSE](LICENSE)). [NOTICE](NOTICE) names the copyright holder.
+The relay is licensed under the Apache License 2.0
+([LICENSE](https://github.com/xblick/durchblick-relay/blob/main/LICENSE)).
+[NOTICE](https://github.com/xblick/durchblick-relay/blob/main/NOTICE) names the copyright holder and the software of
+others in the wheel: zenoh-c with the Rust crates it is built from, libjpeg-turbo and libpng. Their licence texts are
+in [licenses/](https://github.com/xblick/durchblick-relay/tree/main/licenses) and in the wheel.
