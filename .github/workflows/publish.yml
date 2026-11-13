@@ -14,8 +14,8 @@ env:
   ZENOH_VERSION: "1.10.1"
   # zenoh-c 1.10.1 names this Rust in its rust-toolchain.toml (tools/build_wheel.sh checks it)
   RUST_VERSION: "1.97.1"
-  # The core this relay is built and tested against: Durchblick 0.5.0 (commit 45908e6; tag v0.5.0 once it exists)
-  XBLICK_REF: "45908e67465647b39a6b185665bd91da175924ca"
+  # The core this relay is built and tested against: Durchblick 0.5.0 (tag v0.5.0)
+  XBLICK_REF: "v0.5.0"
 
 jobs:
   build:
