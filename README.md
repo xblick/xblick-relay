@@ -77,12 +77,14 @@ zenoh-c from source, because the prebuilt zenoh-c needs glibc 2.34. The script's
 For nvJPEG, or on a system that the wheel does not support, build the program with CMake:
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=<xblick install> \
+cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="<xblick install>;<zenoh install>" \
   -DXBLICK_RELAY_CUDA=ON -DCUDAToolkit_ROOT=<CUDA toolkit>
 cmake --build build
 cmake --install build --prefix build/install
 ```
 
+`<zenoh install>` is the prefix of zenoh-c and zenoh-cpp, for example the one that the core's
+`tools/install_zenoh.sh <prefix>` installed to. Leave it out when they are in the prefix of Durchblick.
 Leave out the two CUDA options for a build without nvJPEG. Put `build/install/bin` on `PATH`, so that `xblick relay`
 finds the program there. `xblick relay` takes the installed wheel first and `PATH` second.
 
