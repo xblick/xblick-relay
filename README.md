@@ -1,5 +1,7 @@
 # xblick-relay
 
+[![xblick core](https://img.shields.io/pypi/v/xblick?label=xblick%20core&color=blue)](https://github.com/xblick/xblick) [![PyPI](https://img.shields.io/pypi/v/xblick-relay)](https://pypi.org/project/xblick-relay/) [![CI](https://github.com/xblick/xblick-relay/actions/workflows/ci.yml/badge.svg)](https://github.com/xblick/xblick-relay/actions/workflows/ci.yml) [![licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](https://github.com/xblick/xblick-relay/blob/main/LICENSE) [![platform](https://img.shields.io/badge/platform-Linux%20x86__64-lightgrey)](https://github.com/xblick/xblick-relay#install) [![Zenoh](https://img.shields.io/badge/Zenoh-1.10-informational)](https://zenoh.io)
+
 A [Durchblick](https://github.com/xblick/xblick) node that brings image streams from other PCs
 into the rings of this PC. You start one relay per PC. It relays every stream that a node on its PC reads from
 another PC: it receives the stream once, decodes each frame once and offers it to every node on the PC through
