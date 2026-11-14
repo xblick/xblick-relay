@@ -57,7 +57,7 @@ tools/check_references.sh
 | --- | --- |
 | A reader keeps `compressed` although the relay is up | The reader has a fixed transport, or a Durchblick older than 0.3.60, so it does not ask. Name the stream with `--stream`, or let the reader use `auto`. Check the relay's log for "a reader on this PC asks for it". |
 | The relay relays nothing and logs that it stands back | The source has a ring on this PC (its readers take it), or another relay on this PC holds the stream's lock file. |
-| The relay sees only the source or only another relay, at random | Durchblick older than 0.3.50: Zenoh merged the info replies of source and relay into one. |
+| The relay sees only the source or only another relay, at random | Durchblick older than 0.3.50: Zenoh's default query consolidation kept one reply per key, so one of the info replies of source and relay was dropped. |
 | `--cuda-device: this build has no nvJPEG (XBLICK_RELAY_CUDA off)` | Rebuild with `-DXBLICK_RELAY_CUDA=ON -DCUDAToolkit_ROOT=...`. |
 | `--cpu and --cuda-device exclude each other` | Pass one of them. |
 | Relaying a local source in tests | Works for a source without a ring on this host: `xblick-cpp-camera --transports raw,compressed`, or a Python publisher made while `_core.host_id` is patched to another host. |

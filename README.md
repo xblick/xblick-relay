@@ -55,7 +55,7 @@ Readers receive those from the source.
 - For the CMake build: CMake 3.22 or newer, Ninja and a C++20 compiler. Installing the wheel needs none of them.
 - For GPU decoding with the CMake build: an NVIDIA GPU and a CUDA 12 toolkit with nvJPEG. Without them the relay
   decodes on the CPU and fills the host ring only.
-- A Zenoh router (`zenohd`) on the PC, as for every Durchblick node.
+- A [Zenoh router](https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router) on the PC (`xblick router` or `zenohd`), as for every Durchblick node.
 
 ## Install
 
@@ -105,7 +105,7 @@ With the wheel, write `xblick relay` in place of `xblick-relay`. The options sta
 | `--stream NAME ...` | none | Streams that the relay relays from its start, also for readers that do not ask. See below. |
 | `--cuda-device N` | GPU 0 if the PC has one | Decode with nvJPEG on GPU N and fill a CUDA ring and a host ring. |
 | `--cpu` | | Decode on the CPU and fill the host ring only. |
-| `--connect HOST ...`, `--listen ENDPOINT ...`, `--zenoh-mode peer\|client` (also `--mode`) | the PC's router at 127.0.0.1:7447 | The Zenoh session. |
+| `--connect ENDPOINT ...`, `--listen ENDPOINT ...`, `--zenoh-mode peer\|client` (also `--mode`) | the PC's router at 127.0.0.1:7447 | The Zenoh session. |
 | `--slots N` | 32 | The number of ring slots. 32 slots hold about one second at 30 Hz. |
 | `--idle-ms MS` | 2000 | The relay keeps a stream this long after its last reader left. |
 | `--prefer-raw` | off | Take the source's `raw` form even where the source offers `compressed`. |

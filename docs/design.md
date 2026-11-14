@@ -11,9 +11,10 @@ to the source's host. A source's record has `relayed_from` null.
 
 ## Which streams the relay relays
 
-A subscriber with the transport `auto` holds a Zenoh liveliness token `<stream>/want/<host>/<id>` while the stream
-has no source with a ring on the subscriber's host. `<host>` is the id of the subscriber's host. Durchblick 0.3.60
-added this token.
+A subscriber with the transport `auto` holds a Zenoh [liveliness
+token](https://docs.rs/zenoh/1.10.1/zenoh/liveliness/index.html) `<stream>/want/<host>/<id>` while the stream has no
+source with a ring on the subscriber's host. `<host>` is the id of the subscriber's host. Durchblick 0.3.60 added this
+token.
 
 The relay watches the tokens of its own host. It starts to relay a stream when the first token for it appears, and
 it stops `--idle-ms` after the last token disappeared. A token also disappears when its reader crashes. A relay that

@@ -1,7 +1,7 @@
 // xblick-relay: brings image streams of other PCs into this PC's shared-memory and CUDA rings (relay.hpp).
 //
 //   xblick-relay [--stream robot/ecam24/left ...] [--cuda-device 0 | --cpu]
-//                    [--connect HOST ...] [--listen ENDPOINT ...] [--zenoh-mode peer|client] [--slots 32]
+//                    [--connect ENDPOINT ...] [--listen ENDPOINT ...] [--zenoh-mode peer|client] [--slots 32]
 //                    [--idle-ms 2000] [--prefer-raw] [--node NAME] [--param NAME:=VALUE ...] [--params-file FILE ...]
 //
 // One relay per PC. It relays every stream that a reader on this PC asks for: a subscriber with the transport auto
