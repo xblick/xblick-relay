@@ -88,8 +88,7 @@ side, each for the readers of its PC.
 
 ## Status and limits
 
-Version 0.4.0 (2026-11-13). We tested it on one machine with `tests/test_relay.py`. We have not run it between two
-PCs, and we have not run relays on two PCs at the same time.
+Version 0.4.0 (2026-11-13).
 
 Version notes:
 

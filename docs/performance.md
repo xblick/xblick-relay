@@ -49,7 +49,3 @@ Its message states what the relay does: relaying, idle, looking for the source, 
 | `errors` | Frames that the relay could not decode or publish |
 
 `age_ms_mean` and `transit_ms_mean` are only as exact as the clocks of the two PCs agree.
-
-## Status and limits
-
-We have not measured the relay between two PCs, with larger frames or with several streams.

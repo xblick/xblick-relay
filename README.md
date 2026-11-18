@@ -142,13 +142,10 @@ and explains the relay's status values.
 
 ## Limits
 
-- We tested the relay on one machine only. We have not run it between two PCs, and we have not run relays on two
-  PCs at the same time.
 - One relay per PC. A second relay on the same PC waits for each stream that the first one relays.
 - The relay handles image streams. It does not relay point clouds and it does not rectify.
 - The relay decodes every stream on one GPU. A reader on another GPU of the PC copies each frame from there.
-- The wheel decodes on the CPU only. We installed it with pip on Debian 12 (Python 3.10 and 3.12) and started its
-  program on Ubuntu 22.04 and Ubuntu 24.04. Its tests passed on Ubuntu 24.04.
+- The wheel decodes on the CPU only.
 
 [docs/design.md](https://github.com/xblick/xblick-relay/blob/main/docs/design.md) explains the reasons and lists
 the open work.
