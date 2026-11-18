@@ -7,8 +7,8 @@ Run with Durchblick's Python environment:
     XBLICK_RELAY=<xblick-relay binary> ZENOHD=<zenohd 1.10 binary> \\
     <xblick>/.venv/bin/python -m pytest tests/test_relay.py
 
-The CUDA cases need a GPU and a relay built with XBLICK_RELAY_CUDA; they skip for a relay without nvJPEG (its --help
-says which decoders it has), such as the program of the wheel xblick-relay."""
+The CUDA cases need a GPU and a relay with nvJPEG (the wheel's program, or a CMake build with XBLICK_RELAY_CUDA); they
+skip for a relay without nvJPEG (its --help says which decoders it has)."""
 
 import json
 import os
@@ -48,7 +48,7 @@ def relay_has_nvjpeg(relay: str) -> bool:
 NVJPEG = relay_has_nvjpeg(RELAY) if RELAY else False
 needs_cuda = pytest.mark.skipif(_core.cuda_device_count() == 0 or not NVJPEG,
                                 reason="no CUDA device" if _core.cuda_device_count() == 0
-                                else "the relay is built without nvJPEG (the wheel, or XBLICK_RELAY_CUDA off)")
+                                else "the relay is built without nvJPEG (XBLICK_RELAY_CUDA off)")
 
 W, H = 640, 480
 BASE = "t/relay/color"

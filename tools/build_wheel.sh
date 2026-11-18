@@ -7,14 +7,17 @@
 #
 # Needs on PATH cargo and rustc of the version zenoh-c's rust-toolchain.toml names (1.97.1 for zenoh-c 1.10.1), and
 # network access: the zenoh-c and zenoh-cpp sources (GitHub), Rust crates, the pip packages nvidia-cuda-runtime (cuda.h
-# for Durchblick's C++ library) and the build requirements. <work dir> must not exist or be empty; <out dir> gets the
-# repaired wheel only.
+# for Durchblick's C++ library) and the build requirements (pyproject.toml: with nvidia-nvjpeg-cu12 and
+# nvidia-cuda-runtime-cu12, the headers and libraries of the nvJPEG module). No GPU and no CUDA toolkit. <work dir>
+# must not exist or be empty; <out dir> gets the repaired wheel only.
 #
 # 1. zenoh-c from source: its prebuilt release needs glibc 2.34 (GLIBC_2.34 symbols), more than manylinux_2_28 allows.
 # 2. zenoh-cpp's headers. 3. Durchblick's C++ library (camera API, static) from <xblick checkout>.
 # 4. The wheel (pyproject.toml). 5. auditwheel repair: libjpeg and libpng of AlmaLinux 8 go into xblick_relay.libs/
-#    (their licences: licenses/), libzenohc.so stays in xblick_relay/lib. 6. Checks: the platform tag, every library
-#    resolves without LD_LIBRARY_PATH, --help names a CPU-only build.
+#    (their licences: licenses/), libzenohc.so and the nvJPEG module stay in xblick_relay/lib, NVIDIA's libnvjpeg and
+#    libcudart stay out (--exclude: the wheel depends on NVIDIA's packages, it does not contain them). 6. Checks: the
+#    platform tag, no NVIDIA file in the wheel, the dependencies on NVIDIA's packages, every library of the program
+#    resolves without LD_LIBRARY_PATH, the module's RPATH, --help names the nvJPEG build.
 set -euo pipefail
 
 if [ $# -ne 3 ]; then
@@ -108,7 +111,7 @@ echo "== the wheel"
 CMAKE_PREFIX_PATH="$WORK/core-install:$ZENOH" "$PYTHON" -m pip wheel --no-deps --no-cache-dir "$RELAY" \
   -w "$WORK/wheelhouse" -C build-dir="$WORK/relay-build"
 wheel="$(ls "$WORK"/wheelhouse/xblick_relay-*.whl)"
-auditwheel repair --plat "$PLAT" -w "$WORK/repaired" "$wheel"
+auditwheel repair --plat "$PLAT" --exclude libnvjpeg.so.12 --exclude libcudart.so.12 -w "$WORK/repaired" "$wheel"
 repaired="$(ls "$WORK"/repaired/xblick_relay-*-py3-none-${PLAT}.whl)"
 auditwheel show "$repaired"
 
@@ -127,6 +130,32 @@ if env -u LD_LIBRARY_PATH ldd "$program" | grep -E "=> /(usr/)?lib.*/lib(jpeg|pn
   echo "$program takes libjpeg or libpng from the system" >&2
   exit 1
 fi
-env -u LD_LIBRARY_PATH "$program" --help | grep -q "decoders of this build: CPU only"
+env -u LD_LIBRARY_PATH "$program" --help | grep -q "decoders of this build: nvJPEG (CUDA ring; CUDA 12"
+module="$WORK/check/xblick_relay/lib/libxblick-relay-nvjpeg.so"
+# no code of NVIDIA in the wheel: neither its libraries (auditwheel --exclude) nor anything under nvidia/
+if "$PYTHON" -m zipfile -l "$repaired" | grep -E -i "libnvjpeg|libcudart|(^|/)nvidia/"; then
+  echo "$repaired contains NVIDIA's files" >&2
+  exit 1
+fi
+readelf -d "$module" | grep -q "NEEDED.*\[libnvjpeg.so.12\]"
+readelf -d "$module" | grep -q "NEEDED.*\[libcudart.so.12\]"
+rpath='$ORIGIN/../../nvidia/nvjpeg/lib:$ORIGIN/../../nvidia/cuda_runtime/lib'
+if ! readelf -d "$module" | grep -F "(RPATH)" | grep -q -F "[$rpath]"; then
+  readelf -d "$module" | grep -E "RPATH|RUNPATH" >&2 || true
+  echo "$module: its RPATH is not $rpath" >&2
+  exit 1
+fi
+if readelf -d "$program" | grep -q "NEEDED.*\[lib\(nvjpeg\|cudart\|cuda\)\."; then
+  echo "$program needs a CUDA library: it must open the module instead" >&2
+  exit 1
+fi
+metadata="$(cd "$WORK/check" && cat xblick_relay-*.dist-info/METADATA)"
+for requirement in "nvidia-nvjpeg-cu12<13,>=12.3.5" "nvidia-cuda-runtime-cu12<13,>=12.0"; do
+  if ! grep -q -x "Requires-Dist: $requirement" <<< "$metadata"; then
+    grep "^Requires-Dist" <<< "$metadata" >&2 || true
+    echo "the wheel does not depend on $requirement" >&2
+    exit 1
+  fi
+done
 cp "$repaired" "$OUT/"
 echo "== $OUT/$(basename "$repaired")"

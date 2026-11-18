@@ -449,7 +449,7 @@ namespace xblick::relay
             {
                 if (not decoder or decoder->device() != *o.cuda_device)
                 {
-                    decoder = std::make_unique<NvJpegDecoder>(*o.cuda_device);  // throws: retried, current unchanged
+                    decoder = make_nvjpeg_decoder(*o.cuda_device);  // throws: retried, current unchanged
                 }
                 use_nvjpeg = true;
                 name = "nvjpeg";

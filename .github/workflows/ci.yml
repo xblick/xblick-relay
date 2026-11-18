@@ -1,5 +1,7 @@
 # xblick-relay CI: the reference check, the build against Durchblick's C++ library, the tests that need no GPU
-# (the CPU cases of tests/test_relay.py; the CUDA cases skip without a device), and the wheel xblick-relay for PyPI.
+# (the CPU cases of tests/test_relay.py and tests/test_device.py; the CUDA cases skip without a device), and the wheel
+# xblick-relay for PyPI: its nvJPEG module built against NVIDIA's pip packages, and its stop with one line where
+# nvJPEG cannot run (no driver here; a copy without NVIDIA's packages).
 name: ci
 
 on:
@@ -68,6 +70,8 @@ jobs:
           LD_LIBRARY_PATH=/opt/zenoh/lib XBLICK_CPP_BUILD="$GITHUB_WORKSPACE/xblick/build/cpp" \
           XBLICK_RELAY="$PWD/build/install/bin/xblick-relay" ZENOHD=/opt/zenohd/zenohd \
           "$GITHUB_WORKSPACE/xblick/.venv/bin/python" -m pytest -q tests/test_relay.py
+          XBLICK_RELAY="$PWD/build/install/bin/xblick-relay" LD_LIBRARY_PATH=/opt/zenoh/lib \
+          "$GITHUB_WORKSPACE/xblick/.venv/bin/python" -m pytest -q tests/test_device.py
 
   # The wheel xblick-relay for PyPI: tools/build_wheel.sh in manylinux_2_28, as the workflow publish builds it.
   wheel:
@@ -103,8 +107,9 @@ jobs:
           name: xblick-relay-wheel
           path: relay/dist/*.whl
 
-  # The wheel in a fresh environment beside Durchblick from its checkout (no package index for either), started
-  # through `xblick relay` without LD_LIBRARY_PATH.
+  # The wheel in a fresh environment beside Durchblick from its checkout, with NVIDIA's packages from PyPI (its
+  # dependencies), started through `xblick relay` and the command xblick-relay without LD_LIBRARY_PATH. The runner
+  # has no GPU and no driver: the default (nvJPEG on GPU 0) must stop with one line, --cpu must start.
   wheel-check:
     needs: wheel
     runs-on: ubuntu-24.04
@@ -115,6 +120,9 @@ jobs:
           repository: xblick/xblick
           ref: ${{ env.XBLICK_REF }}
           path: xblick
+      - uses: actions/checkout@v4
+        with:
+          path: relay
       - uses: actions/download-artifact@v4
         with:
           name: xblick-relay-wheel
@@ -123,8 +131,19 @@ jobs:
         run: |
           python3 -m pip install --quiet uv
           uv venv /tmp/check
-          uv pip install --python /tmp/check ./xblick dist/xblick_relay-*.whl
+          uv pip install --python /tmp/check ./xblick dist/xblick_relay-*.whl pytest
+          uv pip list --python /tmp/check | grep -E "^(xblick-relay|nvidia-)"
           program="$(/tmp/check/bin/python -c "import xblick_relay; print(xblick_relay.binary())")"
-          env -u LD_LIBRARY_PATH ldd "$program"
-          if env -u LD_LIBRARY_PATH ldd "$program" | grep -q "not found"; then exit 1; fi
+          module="$(realpath "$(dirname "$program")/../lib/libxblick-relay-nvjpeg.so")"
+          env -u LD_LIBRARY_PATH ldd "$program" "$module"
+          if env -u LD_LIBRARY_PATH ldd "$program" "$module" | grep -q "not found"; then exit 1; fi
+          # NVIDIA's libraries from their packages in this environment
+          env -u LD_LIBRARY_PATH ldd "$module" | grep -q "=> /tmp/check/lib/python3.12/site-packages/xblick_relay/lib/../../nvidia/nvjpeg/lib/libnvjpeg.so.12"
+          env -u LD_LIBRARY_PATH ldd "$module" | grep -q "=> /tmp/check/lib/python3.12/site-packages/xblick_relay/lib/../../nvidia/cuda_runtime/lib/libcudart.so.12"
           env -u LD_LIBRARY_PATH /tmp/check/bin/xblick relay --help
+          env -u LD_LIBRARY_PATH /tmp/check/bin/xblick-relay --help | grep "decoders of this build: nvJPEG"
+      - name: Decoder choice (tests/test_device.py)
+        timeout-minutes: 5
+        run: |
+          program="$(/tmp/check/bin/python -c "import xblick_relay; print(xblick_relay.binary())")"
+          env -u LD_LIBRARY_PATH XBLICK_RELAY="$program" /tmp/check/bin/python -m pytest -q -rs relay/tests/test_device.py

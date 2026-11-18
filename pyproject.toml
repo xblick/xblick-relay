@@ -1,22 +1,39 @@
-# The Python wheel xblick-relay: the program xblick-relay (CMakeLists.txt, without nvJPEG) and libzenohc.so in the
-# package xblick_relay. Durchblick's command `xblick relay` starts it (pip install xblick[relay]).
+# The Python wheel xblick-relay: the program xblick-relay (CMakeLists.txt), libzenohc.so and the nvJPEG module
+# libxblick-relay-nvjpeg.so in the package xblick_relay. The command xblick-relay (python/xblick_relay/__init__.py,
+# main) and Durchblick's command `xblick relay` start it (pip install xblick-relay, or xblick[relay]).
 #
 #   CMAKE_PREFIX_PATH=<xblick install>:<zenoh-c/zenoh-cpp prefix> uv build --wheel --out-dir dist
 #
 # The wheel for PyPI (manylinux_2_28, libjpeg and libpng inside): tools/build_wheel.sh. licenses/: NOTICE.
+#
+# nvJPEG and the CUDA runtime are not in the wheel. They are NVIDIA's pip packages: the build compiles and links the
+# module against the versions below (the oldest this wheel accepts: the CUDA 12.0 runtime, nvJPEG of CUDA 12.8, the
+# first with Blackwell GPUs), and the installed wheel depends on them (project.dependencies), so that pip and uv put
+# them into the same site-packages, where the module finds them (CMakeLists.txt).
 [build-system]
-requires = ["scikit-build-core>=0.11"]
+requires = [
+    "scikit-build-core>=0.11",
+    "nvidia-nvjpeg-cu12==12.3.5.57",
+    "nvidia-cuda-runtime-cu12==12.0.107",
+    "nvidia-cuda-nvcc-cu12==12.0.76",  # crt/host_defines.h of the same CUDA 12.0, which cuda_runtime_api.h includes
+]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "xblick-relay"
 dynamic = ["version"]  # from CMakeLists.txt, project(VERSION)
-description = "xblick-relay: image streams of other PCs in this PC's shared-memory rings; started by `xblick relay`."
+description = "xblick-relay: image streams of other PCs in this PC's shared-memory and CUDA rings, decoded once with nvJPEG."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "licenses/*"]  # licenses/: what the wheel contains of others (NOTICE)
 authors = [{ name = "David Schneider" }]
 requires-python = ">=3.10"
+# libnvjpeg.so.12 and libcudart.so.12 of the nvJPEG module (about 9 MB to download); CUDA 12 needs an NVIDIA driver
+# 525 or newer
+dependencies = [
+    "nvidia-nvjpeg-cu12>=12.3.5,<13",
+    "nvidia-cuda-runtime-cu12>=12.0,<13",
+]
 keywords = ["xblick", "zenoh", "camera", "image streams", "shared memory", "relay", "robotics"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -25,10 +42,14 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3 :: Only",
+    "Environment :: GPU :: NVIDIA CUDA :: 12",
     "Topic :: Multimedia :: Video",
     "Topic :: Scientific/Engineering :: Image Processing",
     "Topic :: System :: Networking",
 ]
+
+[project.scripts]
+xblick-relay = "xblick_relay:main"
 
 [project.urls]
 Homepage = "https://github.com/xblick/xblick-relay"

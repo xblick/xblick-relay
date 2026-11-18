@@ -14,7 +14,9 @@
 // another name): the terminal interface shows how the relay runs, and --param or --params-file set them at the start.
 //
 // Without --connect/--listen: the PC's Zenoh router (127.0.0.1:7447), as every Durchblick node. Without --cpu or
-// --cuda-device: GPU 0 if there is one (nvJPEG into the CUDA ring), else the CPU (shm ring only).
+// --cuda-device, a build with nvJPEG decodes on GPU 0 into the CUDA ring. If it cannot (no driver, no such GPU, the
+// wheel without NVIDIA's packages), the relay stops with one line before it opens a session. The CPU (shm ring only)
+// only with --cpu, or in a build without nvJPEG.
 // Its status, once a second per stream, on <camera>/diagnostics (status relay_<stream>; <camera> = the stream's name
 // without its last part).
 #include <atomic>
@@ -39,6 +41,9 @@
 #include <xblick/parameters.hpp>
 
 #include "relay.hpp"
+#ifdef XBLICK_RELAY_CUDA
+#include "nvjpeg_decoder.hpp"
+#endif
 
 namespace
 {
@@ -56,8 +61,11 @@ namespace
     }
 
     // The second line of --help: what this build decodes with. The tests (tests/test_relay.py) read it to know
-    // whether the program can serve a CUDA ring; the wheel xblick-relay is built without nvJPEG.
-#ifdef XBLICK_RELAY_CUDA
+    // whether the program can serve a CUDA ring.
+#if defined(XBLICK_RELAY_NVJPEG_MODULE)
+    constexpr const char* kDecoders = "decoders of this build: nvJPEG (CUDA ring; CUDA 12 from the packages "
+                                      "nvidia-nvjpeg-cu12 and nvidia-cuda-runtime-cu12) and CPU";
+#elif defined(XBLICK_RELAY_CUDA)
     constexpr const char* kDecoders = "decoders of this build: nvJPEG (CUDA ring) and CPU";
 #else
     constexpr const char* kDecoders = "decoders of this build: CPU only (built without nvJPEG, no --cuda-device)";
@@ -74,8 +82,8 @@ namespace
                                           "ask for, e.g. robot/ecam24/left",
                                   .metavar = "NAME", .aliases = {"streams"}});
         o.add_optional("cuda-device", parameter_type::kInteger,
-                       {.help = "decode with nvJPEG into the CUDA ring of this GPU (default: GPU 0 if there is one)"});
-        o.add_flag("cpu", {.help = "decode on the CPU, shm ring only"});
+                       {.help = "decode with nvJPEG into the CUDA ring of this GPU (default: GPU 0)"});
+        o.add_flag("cpu", {.help = "decode on the CPU, shm ring only; needs no GPU"});
         o.add("slots", std::int64_t{32}, {.help = "slots of each ring",
                                           .parameter = {.integer_range = IntegerRange{2, 1024, 1}}});
         o.add("idle-ms", std::int64_t{2000}, {.help = "how long after its last reader a stream is still relayed",
@@ -182,21 +190,28 @@ int main(int argc, char** argv)
     std::signal(SIGTERM, [](int) { stop = 1; });
     try
     {
-        zenoh::Session session = open_session(options.session_options());
-        const std::string node_name = options.text("node").empty() ? host_node_name() : options.text("node");
-        Parameters parameters(session, check_name(node_name), "xblick");
-        parameters.configure(options.parameter_startup());
-        options.declare(parameters, {}, {"node"});
-        parameters.check_overrides();
         std::optional<int> device;
         if (options.has_value("cuda-device"))
         {
             device = static_cast<int>(options.integer("cuda-device"));
         }
 #ifdef XBLICK_RELAY_CUDA
-        if (not device and not options.flag("cpu") and cuda_device_count() > 0)
+        if (not device and not options.flag("cpu"))
         {
-            device = 0;
+            device = 0;  // a fixed default, not chosen by what the PC has: no GPU is an error, not the CPU
+        }
+        if (device)
+        {
+            // fail now with what is missing, not at the first frame (switch_source retries a failed decoder)
+            try
+            {
+                relay::make_nvjpeg_decoder(*device);
+            }
+            catch (const std::exception& e)
+            {
+                throw std::runtime_error("nvJPEG on GPU " + std::to_string(*device) + ": " + e.what() +
+                                         "; pass --cpu to decode on the CPU (shm ring only)");
+            }
         }
 #else
         if (device)
@@ -204,6 +219,12 @@ int main(int argc, char** argv)
             throw std::invalid_argument("--cuda-device: this build has no nvJPEG (XBLICK_RELAY_CUDA off)");
         }
 #endif
+        zenoh::Session session = open_session(options.session_options());
+        const std::string node_name = options.text("node").empty() ? host_node_name() : options.text("node");
+        Parameters parameters(session, check_name(node_name), "xblick");
+        parameters.configure(options.parameter_startup());
+        options.declare(parameters, {}, {"node"});
+        parameters.check_overrides();
         const auto idle = std::chrono::milliseconds(options.integer("idle-ms"));
         std::map<std::string, Relayed> streams;
         std::map<std::string, std::unique_ptr<DiagnosticsPublisher>> diagnostics;

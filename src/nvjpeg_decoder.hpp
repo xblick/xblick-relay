@@ -1,6 +1,10 @@
 // JPEG frames decoded on the GPU with nvJPEG into device memory (rows without padding), for Durchblick's CUDA ring
 // without a trip through host memory. After xblick-azure-kinect's decoder, with the output layout chosen per
 // stream (rgb8, bgr8, mono8) and the size taken from the JPEG.
+//
+// Two builds (CMakeLists.txt). The CMake build with XBLICK_RELAY_CUDA links nvjpeg_decoder.cpp into the program
+// against a CUDA toolkit. The wheel builds it as the module libxblick-relay-nvjpeg.so against NVIDIA's pip packages;
+// the program opens the module only when it decodes with nvJPEG (nvjpeg_loader.cpp) and needs no CUDA library itself.
 #pragma once
 
 #include <cstdint>
@@ -20,22 +24,25 @@ namespace xblick::relay
     class NvJpegDecoder
     {
     public:
-        explicit NvJpegDecoder(int device);
-        ~NvJpegDecoder();
-        NvJpegDecoder(const NvJpegDecoder&) = delete;
-        NvJpegDecoder& operator=(const NvJpegDecoder&) = delete;
+        virtual ~NvJpegDecoder() = default;
 
         // True if nvJPEG writes this ROS encoding (rgb8, bgr8, mono8).
-        static bool supports(const std::string& encoding);
+        static bool supports(const std::string& encoding)
+        {
+            return encoding == "rgb8" or encoding == "bgr8" or encoding == "mono8";
+        }
         // Decodes into the decoder's device buffer as `encoding`, enqueued on stream() (not waited for).
-        DecodedOnDevice decode(std::span<const std::uint8_t> jpeg, const std::string& encoding);
+        virtual DecodedOnDevice decode(std::span<const std::uint8_t> jpeg, const std::string& encoding) = 0;
         // The CUDA stream (a cudaStream_t, usable as a CUstream) the decoded pixels are ready on.
-        std::uint64_t stream() const;
-        void synchronize();
-        int device() const;
-
-    private:
-        struct Impl;
-        std::unique_ptr<Impl> impl_;
+        virtual std::uint64_t stream() const = 0;
+        virtual void synchronize() = 0;
+        virtual int device() const = 0;
     };
+
+    // An nvJPEG decoder on this GPU. Throws std::runtime_error with one line that names what is missing: the module
+    // or NVIDIA's libraries (wheel), the driver, the device.
+    std::unique_ptr<NvJpegDecoder> make_nvjpeg_decoder(int device);
 }  // namespace xblick::relay
+
+// The decoder's entry point (nvjpeg_decoder.cpp). In the wheel the program looks it up in the module by this name.
+extern "C" xblick::relay::NvJpegDecoder* xblick_relay_open_nvjpeg(int device);
