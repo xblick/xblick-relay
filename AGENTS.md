@@ -14,7 +14,8 @@ Transport-wide traps (Zenoh sessions and routers, CUDA rings, hanging tests) are
 cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=<xblick install> \
   -DXBLICK_RELAY_CUDA=ON -DCUDAToolkit_ROOT=<CUDA 12 toolkit with nvJPEG>
 cmake --build build && cmake --install build --prefix build/install
-# the wheel xblick-relay (pyproject.toml, scikit-build-core; no nvJPEG); env CMAKE_PREFIX_PATH separates with ":"
+# the wheel xblick-relay (pyproject.toml, scikit-build-core; nvJPEG module against NVIDIA's pip packages, which the
+# build environment gets from build-system.requires); env CMAKE_PREFIX_PATH separates with ":"
 CMAKE_PREFIX_PATH=<xblick install>:<zenoh-c/zenoh-cpp prefix> uv build --wheel -o dist   # ~1 min, linux_x86_64 tag
 # the wheel for PyPI (manylinux_2_28; CI job wheel, publish.yml): in quay.io/pypa/manylinux_2_28_x86_64, ~6 min
 dnf install -y --setopt=tsflags= libjpeg-turbo-devel libpng-devel     # root; Rust 1.97.1 (cargo, rustc) on PATH
@@ -22,6 +23,8 @@ tools/build_wheel.sh <xblick checkout> <out dir> <empty work dir>
 # tests: Durchblick's Python env (dev group), Durchblick's C++ build (xblick-cpp-camera), zenohd 1.10
 XBLICK_CPP_BUILD=$XBLICK_DIR/build XBLICK_RELAY=build/install/bin/xblick-relay \
 ZENOHD=<zenohd 1.10> CUDA_VISIBLE_DEVICES=0 $XBLICK_DIR/.venv/bin/python -m pytest tests/test_relay.py
+# the decoder choice at the start (no router; any Python with pytest)
+XBLICK_RELAY=<program> python -m pytest tests/test_device.py
 # run
 xblick-relay --stream <stream> [<stream> ...] [--cuda-device N | --cpu]
 # reference check (patterns in the script; also in CI, .github/workflows/ci.yml)
@@ -29,7 +32,7 @@ tools/check_references.sh
 ```
 
 - Tests are skipped unless `XBLICK_CPP_BUILD`, `XBLICK_RELAY` and `ZENOHD` are set. `-s` prints the delay.
-- CUDA test cases need a GPU and a build with `XBLICK_RELAY_CUDA=ON`.
+- CUDA test cases need a GPU and a relay with nvJPEG (the wheel's program, or `XBLICK_RELAY_CUDA=ON`).
 - Durations are not recorded. Put a timeout on test invocations.
 - Requires Durchblick 0.5 (`find_package(xblick 0.5 REQUIRED)`; the readers too).
 
@@ -47,8 +50,15 @@ tools/check_references.sh
 - Subscribe to the source only while a local reader takes a ring. Drop it `--idle-ms` after the last reader left.
 - Keep a source until three discovery rounds miss it (`kMissesBeforeDrop`). A failed query changes nothing.
 - Compile with `-Wall -Wextra`. Guard all nvJPEG code with `#ifdef XBLICK_RELAY_CUDA`.
-- Wheel (`SKBUILD`): RPATH `$ORIGIN/../lib` only, no path of the build machine. libzenohc.so goes into
-  `xblick_relay/lib`; auditwheel puts libjpeg and libpng into `xblick_relay.libs/`. PyPI wheels only from
+- The decoder follows the options alone: GPU 0 by default, the CPU only with `--cpu` (or in a build without nvJPEG).
+  Check nvJPEG at the start (`make_nvjpeg_decoder` in `main.cpp`) and stop with one line that names the cause and
+  `--cpu`. Never choose the CPU because the GPU, the driver or a library is missing.
+- Wheel (`SKBUILD`): RPATH `$ORIGIN/../lib` only, no path of the build machine. libzenohc.so and the module
+  `libxblick-relay-nvjpeg.so` go into `xblick_relay/lib`; auditwheel puts libjpeg and libpng into
+  `xblick_relay.libs/`. The wheel contains no NVIDIA file: the program links no CUDA library, the module links
+  `libnvjpeg.so.12` and `libcudart.so.12` of the packages `nvidia-nvjpeg-cu12` and `nvidia-cuda-runtime-cu12`
+  (dependencies of the wheel) through its RPATH `$ORIGIN/../../nvidia/{nvjpeg,cuda_runtime}/lib`; `auditwheel repair
+  --exclude` keeps them out. The build pins the oldest versions the wheel accepts (pyproject.toml). PyPI wheels only from
   `tools/build_wheel.sh` (manylinux_2_28; zenoh-c from source: the prebuilt one needs glibc 2.34). Durchblick's `xblick relay` finds the program through `xblick_relay.binary()`: keep that name.
 
 ## Traps
@@ -58,7 +68,10 @@ tools/check_references.sh
 | A reader keeps `compressed` although the relay is up | The reader has a fixed transport, or a Durchblick older than 0.3.60, so it does not ask. Name the stream with `--stream`, or let the reader use `auto`. Check the relay's log for "a reader on this PC asks for it". |
 | The relay relays nothing and logs that it stands back | The source has a ring on this PC (its readers take it), or another relay on this PC holds the stream's lock file. |
 | The relay sees only the source or only another relay, at random | Durchblick older than 0.3.50: Zenoh's default query consolidation kept one reply per key, so one of the info replies of source and relay was dropped. |
-| `--cuda-device: this build has no nvJPEG (XBLICK_RELAY_CUDA off)` | Rebuild with `-DXBLICK_RELAY_CUDA=ON -DCUDAToolkit_ROOT=...`. |
+| `--cuda-device: this build has no nvJPEG (XBLICK_RELAY_CUDA off)` | Rebuild with `-DXBLICK_RELAY_CUDA=ON -DCUDAToolkit_ROOT=...`, or install the wheel. |
+| `error: nvJPEG on GPU 0: no NVIDIA driver ...` or `no CUDA device is visible ...` | The PC has no NVIDIA driver, or `CUDA_VISIBLE_DEVICES` hides every GPU. Pass `--cpu` for CPU decoding; the relay never takes it on its own. |
+| `error: nvJPEG on GPU 0: cannot load nvJPEG (libnvjpeg.so.12: cannot open shared object file ...)` | The wheel without NVIDIA's packages in its `site-packages`: installed with `--no-deps`, the packages uninstalled, or they sit in another `site-packages` (a `--user` install beside system packages, a venv with `--system-site-packages`). Install `nvidia-nvjpeg-cu12` and `nvidia-cuda-runtime-cu12` into the environment of `xblick-relay`. |
+| Wheel build: `crt/host_defines.h: No such file or directory` | `cuda_runtime_api.h` of NVIDIA's runtime package needs the headers of `nvidia-cuda-nvcc-cu12` (build-system.requires); include `cuda_runtime_api.h`, not `cuda_runtime.h`. |
 | `--cpu and --cuda-device exclude each other` | Pass one of them. |
 | Relaying a local source in tests | Works for a source without a ring on this host: `xblick-cpp-camera --transports raw,compressed`, or a Python publisher made while `_core.host_id` is patched to another host. |
 | `age_ms_mean` or `transit_ms_mean` look wrong | They compare the clocks of two PCs. Check the clock synchronisation. |
@@ -77,9 +90,12 @@ tools/check_references.sh
 | `CMakeLists.txt` | one target `xblick-relay`, option `XBLICK_RELAY_CUDA` (default OFF) |
 | `src/main.cpp` | argument parsing, Zenoh session, one `RelayStream` per stream, status on `<camera>/diagnostics` |
 | `src/relay.hpp`, `src/relay.cpp` | `RelayOptions`, `RelayStats`, `RelayStream`: discovery, host lock, subscription on demand, decode, publish |
-| `src/nvjpeg_decoder.hpp`, `src/nvjpeg_decoder.cpp` | nvJPEG decode into device memory (CUDA builds only) |
+| `src/nvjpeg_decoder.hpp`, `src/nvjpeg_decoder.cpp` | nvJPEG decode into device memory (CUDA builds only; the wheel's module) |
+| `src/nvjpeg_loader.cpp` | the wheel's program: opens the module `libxblick-relay-nvjpeg.so` |
 | `tests/test_relay.py` | pytest tests against Durchblick's C++ test camera |
-| `pyproject.toml`, `python/xblick_relay/` | the wheel `xblick-relay`: program in `xblick_relay/bin`, `libzenohc.so` in `xblick_relay/lib`, `binary()` |
+| `tests/test_device.py` | the decoder choice at the start: `--cpu`, stops without a GPU or NVIDIA's packages |
+| `pyproject.toml`, `python/xblick_relay/` | the wheel `xblick-relay`: program in `xblick_relay/bin`, `libzenohc.so` and the nvJPEG module in `xblick_relay/lib`, `binary()`, the command `xblick-relay` (`main`) |
+| `CHANGELOG.md` | changes per version |
 | `tools/build_wheel.sh`, `tools/zenoh_c_crates.py` | the PyPI wheel (manylinux_2_28), the crate list of libzenohc.so |
 | `licenses/` | licence texts of zenoh-c, its Rust crates, libjpeg-turbo, libpng (in the wheel; NOTICE) |
 | `.github/workflows/publish.yml` | tag v<version>: the wheel to PyPI (trusted publishing, environment pypi) |
@@ -90,7 +106,7 @@ tools/check_references.sh
 | Item | Value |
 | --- | --- |
 | Options | `--slots 32`, `--idle-ms 2000`, `--zenoh-mode peer` (also `--mode`), no `--prefer-raw`; `--streams` is an alias of `--stream` |
-| Device | GPU 0 if there is one (nvJPEG into the CUDA ring), else CPU (host ring only) |
+| Device | GPU 0 (nvJPEG into the CUDA ring); `--cpu`: CPU (host ring only); a build without nvJPEG: CPU |
 | Session | the PC's Zenoh router, 127.0.0.1:7447, unless `--connect` or `--listen` |
 | Discovery | info query every 5 s (`RelayOptions::rediscover`), every 1 s while no source, query timeout 1 s |
 | Status | `<camera>/diagnostics`, name `relay_<stream>`, once per second; `<camera>` is the stream without its last part |

@@ -54,29 +54,42 @@ Readers receive those from the source.
 ## Requirements
 
 - Durchblick 0.5. The readers need 0.5 too. The CMake build also needs Durchblick's C++ library.
+- For GPU decoding: an NVIDIA GPU and an NVIDIA driver 525 or newer. The wheel brings nvJPEG and the CUDA 12 runtime
+  as NVIDIA's pip packages. The CMake build needs a CUDA 12 toolkit with nvJPEG.
+- For CPU decoding: no GPU. Start the relay with `--cpu`.
 - For the CMake build: CMake 3.22 or newer, Ninja and a C++20 compiler. Installing the wheel needs none of them.
-- For GPU decoding with the CMake build: an NVIDIA GPU and a CUDA 12 toolkit with nvJPEG. Without them the relay
-  decodes on the CPU and fills the host ring only.
 - A [Zenoh router](https://zenoh.io/docs/getting-started/installation/#installing-the-zenoh-router) on the PC (`xblick router` or `zenohd`), as for every Durchblick node.
 
 ## Install
 
-With pip, install Durchblick's extra `relay`. It brings the wheel `xblick-relay`, which contains the relay program and
-`libzenohc.so`. The command `xblick relay` starts the program.
+```bash
+pip install xblick-relay          # or: uv tool install xblick-relay
+xblick-relay --help
+```
+
+The wheel decodes with nvJPEG on the GPU. It needs the NVIDIA driver on the PC and nothing else: no CUDA toolkit and
+no `LD_LIBRARY_PATH`. It depends on NVIDIA's packages `nvidia-nvjpeg-cu12` and `nvidia-cuda-runtime-cu12`, which pip
+and uv install with it into the same environment (about 9 MB to download, 19 MB installed). The wheel does not contain
+NVIDIA's libraries. Its program opens them from that environment when it starts on a GPU.
+
+On a PC without an NVIDIA GPU, install the wheel in the same way and start the relay with `--cpu`. NVIDIA's packages
+are installed there too, and the relay does not load them.
+
+Durchblick's extra `relay` installs the same wheel. Its command `xblick relay` starts the same program:
 
 ```bash
 pip install "xblick[relay]"
 xblick relay --help
 ```
 
-The wheel runs on Linux on x86-64 with glibc 2.28 or newer (manylinux_2_28). It decodes on the CPU only. It contains
-libjpeg and libpng and takes glibc, libstdc++ and zlib from the system. PyPI has only this wheel and no source
-distribution of `xblick-relay`, because the program builds only against an installed Durchblick C++ library.
+The wheel runs on Linux on x86-64 with glibc 2.28 or newer (manylinux_2_28). It contains libjpeg and libpng and takes
+glibc, libstdc++ and zlib from the system, and `libcuda.so.1` from the NVIDIA driver. PyPI has only this wheel and no
+source distribution of `xblick-relay`, because the program builds only against an installed Durchblick C++ library.
 
 `tools/build_wheel.sh` builds the wheel as PyPI has it, in the image `quay.io/pypa/manylinux_2_28_x86_64`. It builds
 zenoh-c from source, because the prebuilt zenoh-c needs glibc 2.34. The script's header lists what it needs.
 
-For nvJPEG, or on a system that the wheel does not support, build the program with CMake:
+On a system that the wheel does not support, or against a CUDA toolkit of the PC, build the program with CMake:
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="<xblick install>;<zenoh install>" \
@@ -87,26 +100,31 @@ cmake --install build --prefix build/install
 
 `<zenoh install>` is the prefix of zenoh-c and zenoh-cpp, for example the one that the core's
 `tools/install_zenoh.sh <prefix>` installed to. Leave it out when they are in the prefix of Durchblick.
-Leave out the two CUDA options for a build without nvJPEG. Put `build/install/bin` on `PATH`, so that `xblick relay`
-finds the program there. `xblick relay` takes the installed wheel first and `PATH` second.
+Leave out the two CUDA options for a build without nvJPEG, which decodes on the CPU only. Put `build/install/bin` on
+`PATH`, so that `xblick relay` finds the program there. `xblick relay` takes the installed wheel first and `PATH`
+second.
 
 ## Run
 
 Start one relay on each PC whose nodes read streams from other PCs.
 
 ```bash
-xblick-relay                # every stream that a reader on this PC asks for
-xblick-relay --cpu          # no GPU: host rings only
+xblick-relay                # every stream that a reader on this PC asks for, decoded on GPU 0
+xblick-relay --cpu          # no GPU: decoded on the CPU, host rings only
 xblick-relay --stream robot/ecam24/left robot/ecam24/right     # these streams also without a request
 ```
 
-With the wheel, write `xblick relay` in place of `xblick-relay`. The options stay the same.
+`xblick relay` starts the same program with the same options.
+
+Without `--cpu`, the relay decodes with nvJPEG on GPU 0. If it cannot, because the PC has no NVIDIA driver, no such
+GPU or no NVIDIA packages beside the wheel, it stops at its start with one line that names the cause. It does not
+decode on the CPU unless `--cpu` says so. A build without nvJPEG decodes on the CPU.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--stream NAME ...` | none | Streams that the relay relays from its start, also for readers that do not ask. See below. |
-| `--cuda-device N` | GPU 0 if the PC has one | Decode with nvJPEG on GPU N and fill a CUDA ring and a host ring. |
-| `--cpu` | | Decode on the CPU and fill the host ring only. |
+| `--cuda-device N` | 0 | Decode with nvJPEG on GPU N and fill a CUDA ring and a host ring. |
+| `--cpu` | off | Decode on the CPU and fill the host ring only. Needs no GPU. |
 | `--connect ENDPOINT ...`, `--listen ENDPOINT ...`, `--zenoh-mode peer\|client` (also `--mode`) | the PC's router at 127.0.0.1:7447 | The Zenoh session. |
 | `--slots N` | 32 | The number of ring slots. 32 slots hold about one second at 30 Hz. |
 | `--idle-ms MS` | 2000 | The relay keeps a stream this long after its last reader left. |
@@ -145,7 +163,7 @@ and explains the relay's status values.
 - One relay per PC. A second relay on the same PC waits for each stream that the first one relays.
 - The relay handles image streams. It does not relay point clouds and it does not rectify.
 - The relay decodes every stream on one GPU. A reader on another GPU of the PC copies each frame from there.
-- The wheel decodes on the CPU only.
+- The wheel uses CUDA 12 (nvJPEG and the runtime from NVIDIA's `-cu12` packages).
 
 [docs/design.md](https://github.com/xblick/xblick-relay/blob/main/docs/design.md) explains the reasons and lists
 the open work.
@@ -176,4 +194,6 @@ The relay is licensed under the Apache License 2.0
 ([LICENSE](https://github.com/xblick/xblick-relay/blob/main/LICENSE)).
 [NOTICE](https://github.com/xblick/xblick-relay/blob/main/NOTICE) names the copyright holder and the software of
 others in the wheel: zenoh-c with the Rust crates it is built from, libjpeg-turbo and libpng. Their licence texts are
-in [licenses/](https://github.com/xblick/xblick-relay/tree/main/licenses) and in the wheel.
+in [licenses/](https://github.com/xblick/xblick-relay/tree/main/licenses) and in the wheel. NVIDIA's packages
+`nvidia-nvjpeg-cu12` and `nvidia-cuda-runtime-cu12` are not part of the wheel. pip installs them from PyPI under
+NVIDIA's licence, which comes with each of them.

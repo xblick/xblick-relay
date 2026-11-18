@@ -54,13 +54,25 @@ and `relayed_from`, and `CameraPublisher::publish(image, Origin)` passes the sou
 
 | Input | Decoder | Result |
 | --- | --- | --- |
-| JPEG of `rgb8`, `bgr8` or `mono8`, with a GPU | nvJPEG decodes straight into GPU memory. | The relay copies the frame into the CUDA ring. |
+| JPEG of `rgb8`, `bgr8` or `mono8`, without `--cpu` | nvJPEG decodes straight into GPU memory. | The relay copies the frame into the CUDA ring. |
 | Other codecs: RVL for depth, PNG | Durchblick's CPU decoder | The relay publishes the decoded image. |
 | Any codec with `--cpu` | Durchblick's CPU decoder | The relay writes the decoded image into the host ring. |
 | `raw` frames | none | The relay copies the frame as it is. |
 
 With a GPU, the host ring receives a frame through one download from the GPU. The relay downloads only while a
 reader of the host ring exists.
+
+The relay chooses its decoder once, at its start, from its options alone. Without `--cpu` it opens nvJPEG on GPU 0
+or on the GPU of `--cuda-device`. If that fails, it stops with one line before it opens a Zenoh session. It does not
+choose the CPU because the PC lacks a GPU: such a relay would offer no CUDA ring, and the readers on the GPU would
+upload every frame without a sign of the cause.
+
+The wheel's program links no CUDA library. It opens the module `xblick_relay/lib/libxblick-relay-nvjpeg.so` only when
+it decodes with nvJPEG. The module links `libnvjpeg.so.12` and `libcudart.so.12`, and its RPATH names the directories
+of NVIDIA's packages relative to itself (`../../nvidia/nvjpeg/lib`, `../../nvidia/cuda_runtime/lib`), as pip and uv
+install them into the same `site-packages`. An RPATH, not a RUNPATH, so that a CUDA toolkit on `LD_LIBRARY_PATH` does
+not replace them. The program therefore starts with `--cpu` where NVIDIA's packages are missing, and the error
+without `--cpu` names the packages.
 
 ## On demand
 
